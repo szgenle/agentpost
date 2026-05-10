@@ -11,6 +11,11 @@ android {
         versionName = "0.1.0-SNAPSHOT"
     }
 
+    // 只打包 zh / en 两套 locale，避免 APK 被依赖库（如 AppCompat）携带的其他语言资源撞入。
+    androidResources {
+        localeFilters += listOf("zh", "en")
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -53,6 +58,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    // AppCompat：per-app 语言切换（AppCompatDelegate.setApplicationLocales）
+    implementation(libs.androidx.appcompat)
 
     // WorkManager：后台周期性 syncInbox
     implementation(libs.androidx.work.runtime.ktx)

@@ -37,4 +37,9 @@
     <string name="settings_msg_saved_synced">%1$s 已保存，拉到 %2$d 封新邮件</string>
     <!-- %1$s = 已保存账户标签，%2$s = 错误信息 -->
     <string name="settings_msg_saved_sync_failed">%1$s 已保存，但拉取失败：%2$s</string>
+
+    <!-- 语言切换：选项名用各自语言的定名，translatable=false -->
+    <string name="settings_language_section">语言</string>
+    <string name="settings_language_zh" translatable="false">中文</string>
+    <string name="settings_language_en" translatable="false">English</string>
 </resources>

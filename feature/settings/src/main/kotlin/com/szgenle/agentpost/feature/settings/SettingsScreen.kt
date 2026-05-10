@@ -91,6 +91,11 @@ fun SettingsRoute(
                 busy = state.busy,
                 onSave = viewModel::saveAgent,
             )
+            HorizontalDivider()
+            LanguageSection(
+                currentTag = state.languageTag,
+                onSelect = viewModel::setLanguage,
+            )
         }
     }
 }
@@ -247,6 +252,33 @@ private fun AgentSection(
         enabled = !busy,
         modifier = Modifier.fillMaxWidth(),
     ) { Text(stringResource(R.string.settings_save_agent)) }
+}
+
+@Composable
+private fun LanguageSection(
+    currentTag: String?,
+    onSelect: (String) -> Unit,
+) {
+    Text(
+        stringResource(R.string.settings_language_section),
+        style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+    )
+    // 选项用各自语言的定名显示，无论当前 locale 如何都能被用户认出来。
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(
+            selected = currentTag == "zh-CN",
+            onClick = { onSelect("zh-CN") },
+            label = { Text(stringResource(R.string.settings_language_zh)) },
+        )
+        FilterChip(
+            selected = currentTag == "en",
+            onClick = { onSelect("en") },
+            label = { Text(stringResource(R.string.settings_language_en)) },
+        )
+    }
 }
 
 @Composable

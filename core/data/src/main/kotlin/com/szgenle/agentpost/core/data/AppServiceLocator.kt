@@ -28,6 +28,13 @@ object AppServiceLocator {
             return _mailRepository
         }
 
+    private lateinit var _appPreferences: AppPreferences
+    val appPreferences: AppPreferences
+        get() {
+            check(initialized) { "AppServiceLocator not initialized. Call init(context) in Application.onCreate." }
+            return _appPreferences
+        }
+
     fun init(context: Context) {
         if (initialized) return
         synchronized(this) {
@@ -43,6 +50,7 @@ object AppServiceLocator {
                 .build()
             val vault = CredentialsVault.create(app)
             val prefs = AppPreferences(app)
+            _appPreferences = prefs
             _mailRepository = MailRepository(
                 accountDao = db.accountDao(),
                 taskDao = db.taskDao(),

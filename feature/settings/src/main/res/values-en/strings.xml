@@ -29,4 +29,7 @@
     <string name="settings_msg_saved_syncing">%1$s saved. Fetching emails…</string>
     <string name="settings_msg_saved_synced">%1$s saved. Fetched %2$d new emails.</string>
     <string name="settings_msg_saved_sync_failed">%1$s saved, but fetch failed: %2$s</string>
+
+    <!-- Language section title only; zh/en option names are translatable=false in values/. -->
+    <string name="settings_language_section">Language</string>
 </resources>

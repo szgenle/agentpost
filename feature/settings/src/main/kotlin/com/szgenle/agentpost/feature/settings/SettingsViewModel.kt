@@ -1,5 +1,7 @@
 package com.szgenle.agentpost.feature.settings
 
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -7,6 +9,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
+import com.szgenle.agentpost.core.datastore.AppPreferences
 import com.szgenle.agentpost.core.model.Account
 import com.szgenle.agentpost.core.model.AccountType
 import com.szgenle.agentpost.core.ui.UiText
@@ -26,10 +29,13 @@ data class SettingsUiState(
     val agent: Account? = null,
     val message: UiText? = null,
     val busy: Boolean = false,
+    /** 当前应用语言 tag："zh-CN" / "en"。null 表示尚未加载完 DataStore。 */
+    val languageTag: String? = null,
 )
 
 class SettingsViewModel(
     private val repo: MailRepository,
+    private val prefs: AppPreferences,
 ) : ViewModel() {
 
     private val transient = MutableStateFlow(TransientState())
@@ -38,8 +44,15 @@ class SettingsViewModel(
         repo.observeSelfAccount(),
         repo.observeAgentAccount(),
         transient,
-    ) { self, agent, t ->
-        SettingsUiState(self = self, agent = agent, message = t.message, busy = t.busy)
+        prefs.observeLanguageTag(),
+    ) { self, agent, t, langTag ->
+        SettingsUiState(
+            self = self,
+            agent = agent,
+            message = t.message,
+            busy = t.busy,
+            languageTag = langTag,
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -165,6 +178,24 @@ class SettingsViewModel(
         transient.value = transient.value.copy(message = null)
     }
 
+    /**
+     * 切换应用语言。
+     *
+     * 1. 持久化 tag，下次启动 Application 将读取它（主要起保留作用，
+     *    pre-33 上 AppCompat 自己也会写 SharedPreferences）。
+     * 2. 调 [AppCompatDelegate.setApplicationLocales]：
+     *    - 当前 Activity 会被 AppCompat 自动 recreate，新语言立即生效。
+     *    - API 33+ 上还会同步到系统「应用语言」面板。
+     */
+    fun setLanguage(tag: String) {
+        viewModelScope.launch {
+            prefs.setLanguageTag(tag)
+        }
+        AppCompatDelegate.setApplicationLocales(
+            LocaleListCompat.forLanguageTags(tag),
+        )
+    }
+
     private data class TransientState(
         val message: UiText? = null,
         val busy: Boolean = false,
@@ -173,7 +204,10 @@ class SettingsViewModel(
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                SettingsViewModel(AppServiceLocator.mailRepository)
+                SettingsViewModel(
+                    repo = AppServiceLocator.mailRepository,
+                    prefs = AppServiceLocator.appPreferences,
+                )
             }
         }
     }
