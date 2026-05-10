@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
+import com.szgenle.agentpost.core.mail.MailProviderPresets
 import com.szgenle.agentpost.core.model.Account
 import com.szgenle.agentpost.core.ui.UiText
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -135,13 +136,27 @@ data class SelfForm(
     val smtpUseStartTls: Boolean = true,
 )
 
-fun Account.toSelfForm(): SelfForm = SelfForm(
-    displayName = displayName,
-    email = email,
-    imapHost = imapHost,
-    imapPort = imapPort,
-    imapUseSsl = imapUseSsl,
-    smtpHost = smtpHost,
-    smtpPort = smtpPort,
-    smtpUseStartTls = smtpUseStartTls,
-)
+/**
+ * 把 Account 转成表单字段。
+ *
+ * 对"仅设了身份、未配置 IMAP/SMTP"的占位记录（host 为空）做预设兜底：
+ * 若 email 能匹配到服务商预设（QQ/Gmail/163 等），则用预设的 host/port/SSL 默认值
+ * 回填到表单，避免用户进入邮箱设置后看到空 Host。
+ */
+fun Account.toSelfForm(): SelfForm {
+    val preset = if (imapHost.isBlank() || smtpHost.isBlank()) {
+        MailProviderPresets.matchByEmail(email)
+    } else {
+        null
+    }
+    return SelfForm(
+        displayName = displayName,
+        email = email,
+        imapHost = imapHost.ifBlank { preset?.imapHost.orEmpty() },
+        imapPort = if (imapHost.isBlank() && preset != null) preset.imapPort else imapPort,
+        imapUseSsl = if (imapHost.isBlank() && preset != null) preset.imapUseSsl else imapUseSsl,
+        smtpHost = smtpHost.ifBlank { preset?.smtpHost.orEmpty() },
+        smtpPort = if (smtpHost.isBlank() && preset != null) preset.smtpPort else smtpPort,
+        smtpUseStartTls = if (smtpHost.isBlank() && preset != null) preset.smtpUseStartTls else smtpUseStartTls,
+    )
+}
