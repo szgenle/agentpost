@@ -6,4 +6,13 @@
     <string name="common_save">保存</string>
     <string name="common_send">发送</string>
     <string name="common_sending">发送中</string>
+
+    <!-- 相对时间文案（核心规则见 core:ui RelativeTime） -->
+    <string name="relative_time_just_now">刚刚</string>
+    <!-- %1$d = 分钟数 -->
+    <string name="relative_time_minutes_ago">%1$d 分钟前</string>
+    <!-- %1$d = 小时数 -->
+    <string name="relative_time_hours_ago">%1$d 小时前</string>
+    <!-- %1$s = HH:mm -->
+    <string name="relative_time_yesterday">昨天 %1$s</string>
 </resources>

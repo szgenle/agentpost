@@ -305,13 +305,13 @@ class MailRepository internal constructor(
         var latestSubject: String = "",
     )
 
-    /** 取邮件正文的单行摘要：第一段非空行，最多 160 字。 */
-    private fun previewOf(body: String): String {
+    /** 取邮件正文的单行摘要：第一段非空行，最多 [limit] 字。 */
+    private fun previewOf(body: String, limit: Int = 160): String {
         val firstLine = body.lineSequence()
             .map { it.trim() }
             .firstOrNull { it.isNotEmpty() }
             ?: return ""
-        return if (firstLine.length <= 160) firstLine else firstLine.substring(0, 160) + "…"
+        return if (firstLine.length <= limit) firstLine else firstLine.substring(0, limit) + "…"
     }
 
     // ============================================================
@@ -332,9 +332,24 @@ class MailRepository internal constructor(
 
     fun observeUnreadCount(taskId: String): Flow<Int> = messageDao.observeUnreadCount(taskId)
 
-    /** 列表项用：每个 Task 的简要视图（MVP 阶段先只包 Task 本身，后续可加 lastMessage / unreadCount）。 */
+    /**
+     * 列表页用：每个 Task 的简要视图（最新消息摘要 + 最新消息时间 + 未读数）。
+     * 过滤掉 `__UNCLASSIFIED__` 占位任务，同 [observeTasks]。
+     */
     fun observeTaskBriefs(): Flow<List<TaskBrief>> =
-        observeTasks().map { tasks -> tasks.map { TaskBrief(task = it) } }
+        taskDao.observeActiveBriefs().map { rows ->
+            rows.asSequence()
+                .filter { it.task.id != SystemIds.UNCLASSIFIED_TASK_ID }
+                .map { row ->
+                    TaskBrief(
+                        task = row.task,
+                        lastMessagePreview = previewOf(row.lastBody ?: "", limit = 60),
+                        lastMessageAt = row.lastSentAt ?: row.task.lastActivityAt,
+                        unreadCount = row.unreadCount,
+                    )
+                }
+                .toList()
+        }
 
     suspend fun markRead(messageId: String) = messageDao.markRead(messageId)
 
@@ -400,8 +415,20 @@ class MailRepository internal constructor(
         map { Attachment(it.fileName, it.mimeType, it.bytes.size.toLong(), null) }
 }
 
-/** 给列表页的卡片级简要视图（后续可加 lastMessage / unreadCount）。 */
-data class TaskBrief(val task: Task)
+/**
+ * 给列表页的卡片级简要视图。
+ *
+ * @property task 任务本体
+ * @property lastMessagePreview 最新一条消息正文的单行摘要（最多 60 字）；任务还没消息时为空串
+ * @property lastMessageAt 最新一条消息的时间；任务无消息时回落到 `task.lastActivityAt`
+ * @property unreadCount 未读消息数（fromAgent=1 AND isRead=0）
+ */
+data class TaskBrief(
+    val task: Task,
+    val lastMessagePreview: String,
+    val lastMessageAt: Long,
+    val unreadCount: Int,
+)
 
 /**
  * 单次 syncInbox 结果。通知层据此按 Task 分组推通知。

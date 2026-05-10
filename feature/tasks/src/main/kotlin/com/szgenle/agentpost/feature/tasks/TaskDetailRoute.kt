@@ -26,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,17 +35,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.szgenle.agentpost.core.model.TaskMessage
+import com.szgenle.agentpost.core.ui.time.RelativeTime
 import com.szgenle.agentpost.core.ui.R as CoreUiR
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +52,7 @@ fun TaskDetailRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     var reply by remember { mutableStateOf("") }
 
     LaunchedEffect(state.error) {
@@ -93,22 +91,33 @@ fun TaskDetailRoute(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (state.messages.isEmpty()) {
-                Box(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(stringResource(R.string.task_detail_empty), style = MaterialTheme.typography.bodyMedium)
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    items(state.messages, key = { it.messageId }) { msg ->
-                        MessageBubble(msg)
+            PullToRefreshBox(
+                isRefreshing = state.isRefreshing,
+                onRefresh = viewModel::refresh,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                if (state.messages.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            stringResource(R.string.task_detail_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        items(state.messages, key = { it.messageId }) { msg ->
+                            MessageBubble(msg)
+                        }
                     }
                 }
             }
@@ -139,6 +148,7 @@ private fun MessageBubble(msg: TaskMessage) {
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val context = LocalContext.current
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -176,7 +186,7 @@ private fun MessageBubble(msg: TaskMessage) {
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = formatTime(msg.sentAt),
+                    text = RelativeTime.format(context, msg.sentAt),
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
@@ -220,8 +230,3 @@ private fun ReplyBar(
         }
     }
 }
-
-private val timeFmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
-
-private fun formatTime(ts: Long): String =
-    if (ts <= 0L) "" else timeFmt.format(Date(ts))

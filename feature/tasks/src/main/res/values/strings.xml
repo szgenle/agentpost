@@ -8,6 +8,10 @@
     <string name="tasks_empty_hint">点右下角 + 发第一封邮件给家里的 AI</string>
     <string name="tasks_untitled">(无标题)</string>
 
+    <!-- 列表项摘要、未读角标、同步错误文案 -->
+    <string name="tasks_item_no_messages">(暂无消息)</string>
+    <string name="tasks_sync_failed">同步失败</string>
+
     <!-- 任务详情 -->
     <string name="task_detail_loading">加载中…</string>
     <string name="task_detail_empty">暂无消息</string>

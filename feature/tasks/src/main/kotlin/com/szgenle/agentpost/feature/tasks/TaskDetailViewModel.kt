@@ -15,7 +15,6 @@ import com.szgenle.agentpost.core.ui.UiText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -26,6 +25,7 @@ data class TaskDetailUiState(
     val task: Task? = null,
     val messages: List<TaskMessage> = emptyList(),
     val sending: Boolean = false,
+    val isRefreshing: Boolean = false,
     val error: UiText? = null,
 )
 
@@ -46,6 +46,7 @@ class TaskDetailViewModel(
             task = task,
             messages = messages,
             sending = t.sending,
+            isRefreshing = t.refreshing,
             error = t.error,
         )
     }.stateIn(
@@ -65,10 +66,10 @@ class TaskDetailViewModel(
     fun sendReply(body: String) {
         if (body.isBlank()) return
         viewModelScope.launch {
-            transient.value = TransientState(sending = true)
+            transient.value = transient.value.copy(sending = true)
             val r = repo.sendReply(taskId = taskId, body = body, attachments = emptyList())
             transient.value = r.fold(
-                onSuccess = { TransientState() },
+                onSuccess = { transient.value.copy(sending = false, error = null) },
                 onFailure = { e ->
                     val msg = e.message
                     val uiText = if (!msg.isNullOrBlank()) {
@@ -76,7 +77,28 @@ class TaskDetailViewModel(
                     } else {
                         UiText.Resource(R.string.task_detail_send_failed)
                     }
-                    TransientState(error = uiText)
+                    transient.value.copy(sending = false, error = uiText)
+                },
+            )
+        }
+    }
+
+    /** 详情页手动下拉刷新：触发一次 [MailRepository.syncInbox]，失败走同一 error 管道。 */
+    fun refresh() {
+        if (transient.value.refreshing) return
+        viewModelScope.launch {
+            transient.value = transient.value.copy(refreshing = true)
+            val r = repo.syncInbox()
+            transient.value = r.fold(
+                onSuccess = { transient.value.copy(refreshing = false) },
+                onFailure = { e ->
+                    val msg = e.message
+                    val uiText = if (!msg.isNullOrBlank()) {
+                        UiText.Dynamic(msg)
+                    } else {
+                        UiText.Resource(R.string.tasks_sync_failed)
+                    }
+                    transient.value.copy(refreshing = false, error = uiText)
                 },
             )
         }
@@ -88,6 +110,7 @@ class TaskDetailViewModel(
 
     private data class TransientState(
         val sending: Boolean = false,
+        val refreshing: Boolean = false,
         val error: UiText? = null,
     )
 

@@ -54,6 +54,23 @@ interface TaskDao {
     )
     fun observeAll(): Flow<List<Task>>
 
+    /**
+     * 任务列表摘要：每条任务带上最新一条消息的 body/sentAt 与未读计数。
+     * 子查询限定在同任务内，archived=0 且按 lastActivityAt 倒序。
+     */
+    @Query(
+        """
+        SELECT t.*,
+          (SELECT body   FROM task_messages WHERE taskId = t.id ORDER BY sentAt DESC LIMIT 1) AS lastBody,
+          (SELECT sentAt FROM task_messages WHERE taskId = t.id ORDER BY sentAt DESC LIMIT 1) AS lastSentAt,
+          (SELECT COUNT(*) FROM task_messages WHERE taskId = t.id AND fromAgent = 1 AND isRead = 0) AS unreadCount
+        FROM tasks t
+        WHERE t.archived = 0
+        ORDER BY t.lastActivityAt DESC
+        """
+    )
+    fun observeActiveBriefs(): Flow<List<TaskBriefRow>>
+
     @Query("UPDATE tasks SET lastActivityAt = :at WHERE id = :id")
     suspend fun touch(id: String, at: Long)
 

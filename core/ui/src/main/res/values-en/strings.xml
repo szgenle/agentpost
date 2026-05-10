@@ -6,4 +6,13 @@
     <string name="common_save">Save</string>
     <string name="common_send">Send</string>
     <string name="common_sending">Sending</string>
+
+    <!-- Relative time formatting (see core:ui RelativeTime) -->
+    <string name="relative_time_just_now">Just now</string>
+    <!-- %1$d = minutes -->
+    <string name="relative_time_minutes_ago">%1$d min ago</string>
+    <!-- %1$d = hours -->
+    <string name="relative_time_hours_ago">%1$d h ago</string>
+    <!-- %1$s = HH:mm -->
+    <string name="relative_time_yesterday">Yesterday %1$s</string>
 </resources>

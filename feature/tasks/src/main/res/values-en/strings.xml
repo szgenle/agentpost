@@ -8,6 +8,10 @@
     <string name="tasks_empty_hint">Tap + to send the first email to your home AI</string>
     <string name="tasks_untitled">(untitled)</string>
 
+    <!-- Item preview, unread badge, sync error -->
+    <string name="tasks_item_no_messages">(No messages yet)</string>
+    <string name="tasks_sync_failed">Sync failed</string>
+
     <string name="task_detail_loading">Loading…</string>
     <string name="task_detail_empty">No messages</string>
     <string name="task_detail_bubble_me">Me</string>
