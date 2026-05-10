@@ -1,5 +1,7 @@
 package com.szgenle.agentpost.crash
 
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,7 +55,7 @@ fun CrashReportPrompt() {
             .getOrDefault(CrashReportPref.ASK_EACH_TIME)
         when (pref) {
             CrashReportPref.NEVER -> withContext(Dispatchers.IO) { store.delete(files) }
-            CrashReportPref.AUTO -> sendAndCleanup(store, files)
+            CrashReportPref.AUTO -> sendAndCleanup(appContext, store, files, notifyUser = false)
             CrashReportPref.ASK_EACH_TIME -> {
                 pending = files
                 showDialog = true
@@ -80,7 +82,7 @@ fun CrashReportPrompt() {
                 onClick = {
                     busy = true
                     scope.launch {
-                        sendAndCleanup(store, files)
+                        sendAndCleanup(appContext, store, files, notifyUser = true)
                         busy = false
                         showDialog = false
                     }
@@ -123,18 +125,39 @@ fun CrashReportPrompt() {
 
 /**
  * 发送给 SELF 邮箱，成功则删除文件；失败保留（交给 [CrashReportStore.pruneOld] 7 天兜底）。
+ *
+ * @param notifyUser 为 true 时弹 Toast 反馈成功/失败（用户主动点“发送”），
+ *                   为 false 时静默运行（AUTO 启动自动上传）。
  */
-private suspend fun sendAndCleanup(store: CrashReportStore, files: List<File>) {
+private suspend fun sendAndCleanup(
+    context: Context,
+    store: CrashReportStore,
+    files: List<File>,
+    notifyUser: Boolean,
+) {
     val bodyAndSubject = withContext(Dispatchers.IO) { buildMail(files) } ?: return
     val (subject, body) = bodyAndSubject
-    val ok = runCatching {
+    val result = runCatching {
         AppServiceLocator.mailRepository.sendCrashReport(subject, body)
     }.getOrElse {
         AppLog.w(TAG, "crash prompt: sendCrashReport threw", it)
-        false
+        Result.failure(it)
     }
-    if (ok) {
+    if (result.isSuccess) {
         withContext(Dispatchers.IO) { store.delete(files) }
+        if (notifyUser) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, R.string.crash_prompt_toast_sent, Toast.LENGTH_SHORT).show()
+            }
+        }
+    } else if (notifyUser) {
+        val reason = result.exceptionOrNull()?.message.orEmpty().ifBlank {
+            result.exceptionOrNull()?.javaClass?.simpleName.orEmpty()
+        }.ifBlank { "unknown" }
+        withContext(Dispatchers.Main) {
+            val msg = context.getString(R.string.crash_prompt_toast_failed, reason)
+            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+        }
     }
 }
 

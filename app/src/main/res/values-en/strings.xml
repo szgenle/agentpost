@@ -16,4 +16,7 @@
     <string name="crash_prompt_send">Send</string>
     <string name="crash_prompt_skip">Skip</string>
     <string name="crash_prompt_never">Never</string>
+    <string name="crash_prompt_toast_sent">Crash report sent. Self-sent mail may skip the inbox — check \"Sent\" folder.</string>
+    <!-- %1$s = failure reason (exception message or class name) -->
+    <string name="crash_prompt_toast_failed">Send failed: %1$s</string>
 </resources>

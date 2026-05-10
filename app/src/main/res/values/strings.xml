@@ -15,4 +15,7 @@
     <string name="crash_prompt_send">发送</string>
     <string name="crash_prompt_skip">跳过</string>
     <string name="crash_prompt_never">从不上报</string>
+    <string name="crash_prompt_toast_sent">崩溃报告已发送。自发自收可能不进收件箱，请到「已发送」查看</string>
+    <!-- %1$s = 失败原因（异常 message 或类名） -->
+    <string name="crash_prompt_toast_failed">发送失败：%1$s</string>
 </resources>

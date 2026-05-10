@@ -594,32 +594,32 @@ class MailRepository internal constructor(
      *
      * 特性：
      *  - 不入库（不生成 Task、不生成 TaskMessage），避免污染任务池
-     *  - SELF 未配置、凭据缺失、SMTP 失败…全部恶化为返回 false不抛异常，
-     *    Crash 路径不应因上报失败再出问题
-     *  - 失败原因写入 AppLog（下次启动仍可从日志追查）
+     *  - SELF 未配置、凭据缺失、SMTP 失败…统一以 [Result.failure] 返回，
+     *    Crash 路径不应因上报失败再抛异常；原始异常/原因放在 Result 里，供 UI 反馈
+     *  - 失败原因同时写入 AppLog（下次启动仍可从日志追查）
      */
     suspend fun sendCrashReport(
         subject: String,
         body: String,
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): Result<Unit> = withContext(Dispatchers.IO) {
         val self = accountDao.getFirstByType(AccountType.SELF)
         if (self == null) {
             AppLog.w(TAG, "crash-report: SELF account missing, skip")
-            return@withContext false
+            return@withContext Result.failure(IllegalStateException("SELF account missing"))
         }
         if (!vault.contains(self.credentialKey)) {
             AppLog.w(TAG, "crash-report: SELF credential missing, skip")
-            return@withContext false
+            return@withContext Result.failure(IllegalStateException("SELF credential missing"))
         }
         if (self.smtpHost.isBlank()) {
             AppLog.w(TAG, "crash-report: SELF smtp not configured, skip")
-            return@withContext false
+            return@withContext Result.failure(IllegalStateException("SELF SMTP not configured"))
         }
         val creds = try {
             self.toCredentials()
         } catch (e: Exception) {
             AppLog.w(TAG, "crash-report: build credentials failed", e)
-            return@withContext false
+            return@withContext Result.failure(e)
         }
         try {
             sender.send(
@@ -630,10 +630,10 @@ class MailRepository internal constructor(
                     body = body,
                 ),
             )
-            true
+            Result.success(Unit)
         } catch (e: Exception) {
             AppLog.w(TAG, "crash-report: SMTP send failed", e)
-            false
+            Result.failure(e)
         }
     }
 
