@@ -300,11 +300,11 @@ class MailRepository internal constructor(
 
     private suspend fun requireSelf(): Account =
         accountDao.getFirstByType(AccountType.SELF)
-            ?: error("SELF account not configured")
+            ?: error("尚未配置自己的邮箱（SELF），请先在设置页填写")
 
     private suspend fun requireAgent(): Account =
         accountDao.getFirstByType(AccountType.AGENT)
-            ?: error("AGENT account not configured")
+            ?: error("尚未配置 AI 的邮箱（AGENT），请先在设置页填写")
 
     private fun Account.toCredentials(): MailCredentials {
         val password = vault.get(credentialKey)

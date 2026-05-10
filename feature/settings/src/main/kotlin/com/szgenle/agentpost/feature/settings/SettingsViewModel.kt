@@ -61,7 +61,7 @@ class SettingsViewModel(
                     password = form.password,
                 )
             }.onSuccess {
-                transient.value = TransientState(message = "SELF 已保存")
+                autoSyncAfterSave(savedLabel = "SELF")
             }.onFailure {
                 transient.value = TransientState(message = "保存失败：${it.message}")
             }
@@ -74,7 +74,7 @@ class SettingsViewModel(
             runCatching {
                 repo.saveAgentAccount(displayName.ifBlank { email }, email.trim())
             }.onSuccess {
-                transient.value = TransientState(message = "AGENT 已保存")
+                autoSyncAfterSave(savedLabel = "AGENT")
             }.onFailure {
                 transient.value = TransientState(message = "保存失败：${it.message}")
             }
@@ -89,6 +89,33 @@ class SettingsViewModel(
                 message = result.fold(
                     onSuccess = { n -> "连接成功，拉到 $n 封新邮件" },
                     onFailure = { "连接失败：${it.message}" },
+                )
+            )
+        }
+    }
+
+    /**
+     * 保存 SELF / AGENT 成功后自动触发一次拉取，不再等 15 分钟的周期性 Worker。
+     * - 两个账户都已配置：立即 syncInbox，结果回到 snackbar
+     * - 只配了一方：提示用户继续配另一方（syncInbox 会报缺少 AGENT/SELF的错）
+     */
+    private fun autoSyncAfterSave(savedLabel: String) {
+        viewModelScope.launch {
+            val self = repo.getSelfAccount()
+            val agent = repo.getAgentAccount()
+            if (self == null || agent == null) {
+                val missing = if (self == null) "自己的邮箱 SELF" else "AI 的邮箱 AGENT"
+                transient.value = TransientState(
+                    message = "$savedLabel 已保存，请继续配置${missing}后才能拉取邮件",
+                )
+                return@launch
+            }
+            transient.value = TransientState(busy = true, message = "$savedLabel 已保存，正在拉取邮件……")
+            val result = repo.syncInbox()
+            transient.value = TransientState(
+                message = result.fold(
+                    onSuccess = { n -> "$savedLabel 已保存，拉到 $n 封新邮件" },
+                    onFailure = { "$savedLabel 已保存，但拉取失败：${it.message}" },
                 )
             )
         }
