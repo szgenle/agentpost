@@ -11,6 +11,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.szgenle.agentpost.feature.newtask.NewTaskRoute
+import com.szgenle.agentpost.feature.settings.FetchIntervalRoute
+import com.szgenle.agentpost.feature.settings.MailSetupRoute
 import com.szgenle.agentpost.feature.settings.SettingsRoute
 import com.szgenle.agentpost.feature.tasks.TASK_ID_ARG
 import com.szgenle.agentpost.feature.tasks.TaskDetailRoute
@@ -28,12 +30,14 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * MVP 四页导航：tasks（起始页）/ task/{taskId} / newtask / settings。
+ * MVP 导航：tasks（起始页）/ task/{taskId} / newtask / settings / settings/mail / settings/fetch。
  */
 private object Routes {
     const val TASKS = "tasks"
     const val NEW_TASK = "newtask"
     const val SETTINGS = "settings"
+    const val SETTINGS_MAIL = "settings/mail"
+    const val SETTINGS_FETCH = "settings/fetch"
     const val TASK_DETAIL = "task/{$TASK_ID_ARG}"
     fun taskDetail(taskId: String) = "task/$taskId"
 }
@@ -62,7 +66,17 @@ fun AgentPostNavHost() {
             )
         }
         composable(Routes.SETTINGS) {
-            SettingsRoute(onBack = { navController.popBackStack() })
+            SettingsRoute(
+                onBack = { navController.popBackStack() },
+                onOpenMail = { navController.navigate(Routes.SETTINGS_MAIL) },
+                onOpenFetch = { navController.navigate(Routes.SETTINGS_FETCH) },
+            )
+        }
+        composable(Routes.SETTINGS_MAIL) {
+            MailSetupRoute(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SETTINGS_FETCH) {
+            FetchIntervalRoute(onBack = { navController.popBackStack() })
         }
     }
 }

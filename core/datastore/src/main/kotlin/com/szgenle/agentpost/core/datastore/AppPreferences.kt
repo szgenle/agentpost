@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -52,7 +53,38 @@ class AppPreferences(context: Context) {
         store.edit { it[LANGUAGE_TAG_KEY] = tag }
     }
 
+    // --- 收件拉取间隔（仅 UI 持久化，本期不接引擎） ---
+    // 前台：秒；后台：分钟。默认值与 UI 下限一致，避免用户填出被邮服限流的值。
+    fun observeFetchIntervals(): Flow<FetchIntervals> =
+        store.data.map {
+            FetchIntervals(
+                foregroundSeconds = it[FETCH_FG_SEC_KEY] ?: DEFAULT_FG_SEC,
+                backgroundMinutes = it[FETCH_BG_MIN_KEY] ?: DEFAULT_BG_MIN,
+            )
+        }
+
+    suspend fun getFetchIntervals(): FetchIntervals =
+        observeFetchIntervals().first()
+
+    suspend fun setFetchIntervals(foregroundSeconds: Int, backgroundMinutes: Int) {
+        store.edit {
+            it[FETCH_FG_SEC_KEY] = foregroundSeconds
+            it[FETCH_BG_MIN_KEY] = backgroundMinutes
+        }
+    }
+
     private companion object {
         val LANGUAGE_TAG_KEY = stringPreferencesKey("ui_language_tag")
+        val FETCH_FG_SEC_KEY = intPreferencesKey("fetch_foreground_seconds")
+        val FETCH_BG_MIN_KEY = intPreferencesKey("fetch_background_minutes")
+
+        const val DEFAULT_FG_SEC = 60
+        const val DEFAULT_BG_MIN = 15
     }
 }
+
+/** 拉取间隔配置快照。 */
+data class FetchIntervals(
+    val foregroundSeconds: Int,
+    val backgroundMinutes: Int,
+)

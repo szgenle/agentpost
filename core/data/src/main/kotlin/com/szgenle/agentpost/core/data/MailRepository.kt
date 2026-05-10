@@ -50,6 +50,10 @@ class MailRepository internal constructor(
 
     /**
      * 保存（或覆盖）SELF 账户。密码写入 [CredentialsVault]，Account 表只存 credentialKey 引用。
+     *
+     * password 语义：
+     * - 非 null：覆盖写入 Vault；
+     * - null：保留原有凭据（用于"留空=不改"场景）。此时 existing 必须存在，否则抛异常。
      */
     suspend fun saveSelfAccount(
         displayName: String,
@@ -60,12 +64,17 @@ class MailRepository internal constructor(
         smtpHost: String,
         smtpPort: Int,
         smtpUseStartTls: Boolean,
-        password: String,
+        password: String?,
     ) {
         val existing = accountDao.getFirstByType(AccountType.SELF)
+        if (existing == null && password == null) {
+            throw IllegalArgumentException("Creating a new SELF account requires a password.")
+        }
         val id = existing?.id ?: UUID.randomUUID().toString()
         val credentialKey = existing?.credentialKey ?: "self_$id"
-        vault.put(credentialKey, password)
+        if (password != null) {
+            vault.put(credentialKey, password)
+        }
         accountDao.upsert(
             Account(
                 id = id,

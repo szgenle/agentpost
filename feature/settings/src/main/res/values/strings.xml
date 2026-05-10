@@ -42,4 +42,35 @@
     <string name="settings_language_section">语言</string>
     <string name="settings_language_zh" translatable="false">中文</string>
     <string name="settings_language_en" translatable="false">English</string>
+
+    <!-- 列表行标题 -->
+    <string name="settings_row_language">语言</string>
+    <string name="settings_row_agent">智能体</string>
+    <string name="settings_row_self">我</string>
+    <string name="settings_row_mail">邮箱设置</string>
+    <string name="settings_row_fetch">收件收取</string>
+
+    <!-- 二级页标题 -->
+    <string name="settings_mail_title">邮箱设置</string>
+    <string name="settings_fetch_title">收件收取</string>
+
+    <!-- 影响行主辅信息或占位符 -->
+    <string name="settings_password_placeholder" translatable="false">••••••••</string>
+    <string name="settings_mail_provider_custom">自定义</string>
+    <string name="settings_mail_require_self_first">请先设置“我”的邮箱</string>
+    <string name="settings_agent_subtitle_hint">仅用于邮件对外署名</string>
+    <string name="settings_name_email_empty">未设置</string>
+    <string name="settings_advanced_toggle">高级设置</string>
+
+    <!-- 弹窗 -->
+    <string name="settings_dialog_edit_agent">编辑智能体</string>
+    <string name="settings_dialog_edit_self">编辑我</string>
+
+    <!-- 收件收取页 -->
+    <string name="settings_fetch_foreground_sec">前台拉取间隔（秒，最小 30）</string>
+    <string name="settings_fetch_background_min">后台拉取间隔（分钟，最小 15）</string>
+    <string name="settings_fetch_warning">拉取太频繁可能被邮箱服务商限流或临时封禁。</string>
+    <string name="settings_fetch_trailing_fmt">前台 %1$ds / 后台 %2$dmin</string>
+    <string name="settings_fetch_saved">已保存</string>
+    <string name="settings_identity_require_mail_first">请先在“邮箱设置”完成初始配置</string>
 </resources>

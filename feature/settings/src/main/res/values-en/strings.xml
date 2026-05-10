@@ -32,4 +32,34 @@
 
     <!-- Language section title only; zh/en option names are translatable=false in values/. -->
     <string name="settings_language_section">Language</string>
+
+    <!-- Row titles -->
+    <string name="settings_row_language">Language</string>
+    <string name="settings_row_agent">Agent</string>
+    <string name="settings_row_self">Me</string>
+    <string name="settings_row_mail">Mailbox</string>
+    <string name="settings_row_fetch">Fetch schedule</string>
+
+    <!-- Detail page titles -->
+    <string name="settings_mail_title">Mailbox settings</string>
+    <string name="settings_fetch_title">Fetch schedule</string>
+
+    <!-- Row subtitles / placeholders -->
+    <string name="settings_mail_provider_custom">Custom</string>
+    <string name="settings_mail_require_self_first">Please set "Me" mailbox first</string>
+    <string name="settings_agent_subtitle_hint">Used only as the outgoing signature</string>
+    <string name="settings_name_email_empty">Not set</string>
+    <string name="settings_advanced_toggle">Advanced</string>
+
+    <!-- Dialogs -->
+    <string name="settings_dialog_edit_agent">Edit agent</string>
+    <string name="settings_dialog_edit_self">Edit me</string>
+
+    <!-- Fetch schedule page -->
+    <string name="settings_fetch_foreground_sec">Foreground interval (seconds, min 30)</string>
+    <string name="settings_fetch_background_min">Background interval (minutes, min 15)</string>
+    <string name="settings_fetch_warning">Fetching too frequently may be rate-limited or temporarily blocked by your mail provider.</string>
+    <string name="settings_fetch_trailing_fmt">FG %1$ds / BG %2$dmin</string>
+    <string name="settings_fetch_saved">Saved</string>
+    <string name="settings_identity_require_mail_first">Please complete Mailbox settings first.</string>
 </resources>

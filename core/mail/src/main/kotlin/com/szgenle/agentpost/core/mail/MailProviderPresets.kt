@@ -76,6 +76,18 @@ object MailProviderPresets {
         smtpUseStartTls = false,
     )
 
+    val CHINA_MOBILE_139 = MailProviderPreset(
+        id = "139",
+        displayName = "139 邮箱",
+        emailDomains = listOf("139.com"),
+        imapHost = "imap.139.com",
+        imapPort = 993,
+        imapUseSsl = true,
+        smtpHost = "smtp.139.com",
+        smtpPort = 465,
+        smtpUseStartTls = false,
+    )
+
     val OUTLOOK = MailProviderPreset(
         id = "outlook",
         displayName = "Outlook",
@@ -115,7 +127,7 @@ object MailProviderPresets {
 
     /** UI 顺序：常用国内邮箱在前。 */
     val ALL: List<MailProviderPreset> = listOf(
-        QQ, NETEASE_163, NETEASE_126, GMAIL, OUTLOOK, ICLOUD, CUSTOM,
+        QQ, NETEASE_163, NETEASE_126, CHINA_MOBILE_139, GMAIL, OUTLOOK, ICLOUD, CUSTOM,
     )
 
     /**
