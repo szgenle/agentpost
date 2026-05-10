@@ -42,6 +42,9 @@ security-crypto = "1.1.0-alpha06"
 # Mail
 jakarta-mail = "2.0.3"
 
+# Serialization
+kotlinx-serialization = "1.7.3"
+
 # Markdown
 compose-markdown = "0.5.4"
 
@@ -92,7 +95,10 @@ androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx"
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security-crypto" }
 
 # Mail
-jakarta-mail = { group = "com.sun.mail", name = "jakarta.mail", version.ref = "jakarta-mail" }
+jakarta-mail = { group = "org.eclipse.angus", name = "jakarta.mail", version.ref = "jakarta-mail" }
+
+# Serialization
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 
 # Markdown
 compose-markdown = { group = "com.github.jeziellago", name = "compose-markdown", version.ref = "compose-markdown" }
@@ -114,6 +120,7 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 
 # 本项目的 convention 插件
 agentpost-android-application = { id = "agentpost.android.application" }

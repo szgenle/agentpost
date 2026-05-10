@@ -1,11 +1,14 @@
 package com.szgenle.agentpost.core.model
 
+import kotlinx.serialization.Serializable
+
 /**
  * 附件元数据。
  *
  * MVP 阶段以 JSON 形式嵌入 [TaskMessage] 行（TypeConverter 在 core:database 实现），
  * 不单独建表；等真需要"按附件查询/过滤"再拆表。
  */
+@Serializable
 data class Attachment(
     /** 服务端原始文件名。 */
     val fileName: String,
