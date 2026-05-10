@@ -57,6 +57,10 @@ dependencies {
     // WorkManager：后台周期性 syncInbox
     implementation(libs.androidx.work.runtime.ktx)
 
+    // ProcessLifecycleOwner：前台快轮询用
+    implementation(libs.androidx.lifecycle.process)
+    implementation(libs.kotlinx.coroutines.android)
+
     // compose
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
