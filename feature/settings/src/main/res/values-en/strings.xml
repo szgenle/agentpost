@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- English placeholder. TODO: proofread before shipping. -->
+    <string name="settings_title">Settings</string>
+
+    <string name="settings_self_section">SELF (your mailbox)</string>
+    <string name="settings_agent_section">AGENT (home AI mailbox)</string>
+    <string name="settings_provider">Mail provider</string>
+    <string name="settings_display_name_optional">Display name (optional)</string>
+    <string name="settings_email_address">Email address</string>
+    <string name="settings_password">Password / App Password</string>
+    <string name="settings_imap">IMAP</string>
+    <string name="settings_smtp">SMTP</string>
+    <string name="settings_ssl">SSL</string>
+    <string name="settings_starttls">STARTTLS</string>
+    <string name="settings_host">Host</string>
+    <string name="settings_port">Port</string>
+
+    <string name="settings_save_self">Save SELF</string>
+    <string name="settings_save_agent">Save AGENT</string>
+    <string name="settings_test_connection">Test fetch</string>
+
+    <string name="settings_msg_save_failed">Save failed: %1$s</string>
+    <string name="settings_msg_test_success">Connected. Fetched %1$d new emails.</string>
+    <string name="settings_msg_test_failed">Connection failed: %1$s</string>
+
+    <string name="settings_msg_saved_missing_self">%1$s saved. Please configure your SELF mailbox to enable fetching.</string>
+    <string name="settings_msg_saved_missing_agent">%1$s saved. Please configure the AGENT mailbox to enable fetching.</string>
+    <string name="settings_msg_saved_syncing">%1$s saved. Fetching emails…</string>
+    <string name="settings_msg_saved_synced">%1$s saved. Fetched %2$d new emails.</string>
+    <string name="settings_msg_saved_sync_failed">%1$s saved, but fetch failed: %2$s</string>
+</resources>

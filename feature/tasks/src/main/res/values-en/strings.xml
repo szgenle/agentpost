@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- English placeholder. TODO: proofread before shipping. -->
+    <string name="tasks_title">Tasks</string>
+    <string name="tasks_action_settings">Settings</string>
+    <string name="tasks_action_new">New</string>
+    <string name="tasks_empty_title">No tasks yet</string>
+    <string name="tasks_empty_hint">Tap + to send the first email to your home AI</string>
+    <string name="tasks_untitled">(untitled)</string>
+
+    <string name="task_detail_loading">Loading…</string>
+    <string name="task_detail_empty">No messages</string>
+    <string name="task_detail_bubble_me">Me</string>
+    <string name="task_detail_bubble_ai">AI</string>
+    <string name="task_detail_attachments_count">📎 %1$d attachment(s)</string>
+    <string name="task_detail_reply_placeholder">Reply…</string>
+    <string name="task_detail_send_failed">Send failed</string>
+</resources>

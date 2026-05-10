@@ -9,6 +9,7 @@ import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
 import com.szgenle.agentpost.core.model.Account
 import com.szgenle.agentpost.core.model.AccountType
+import com.szgenle.agentpost.core.ui.UiText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,12 +19,12 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 
 /**
- * Settings 屏幕状态。
+ * Settings 屏幕状态。message 使用 UiText，让 ViewModel 不直接持有本地化字符串。
  */
 data class SettingsUiState(
     val self: Account? = null,
     val agent: Account? = null,
-    val message: String? = null,
+    val message: UiText? = null,
     val busy: Boolean = false,
 )
 
@@ -62,8 +63,13 @@ class SettingsViewModel(
                 )
             }.onSuccess {
                 autoSyncAfterSave(savedLabel = "SELF")
-            }.onFailure {
-                transient.value = TransientState(message = "保存失败：${it.message}")
+            }.onFailure { e ->
+                transient.value = TransientState(
+                    message = UiText.Resource(
+                        R.string.settings_msg_save_failed,
+                        listOf(e.message.orEmpty()),
+                    ),
+                )
             }
         }
     }
@@ -75,8 +81,13 @@ class SettingsViewModel(
                 repo.saveAgentAccount(displayName.ifBlank { email }, email.trim())
             }.onSuccess {
                 autoSyncAfterSave(savedLabel = "AGENT")
-            }.onFailure {
-                transient.value = TransientState(message = "保存失败：${it.message}")
+            }.onFailure { e ->
+                transient.value = TransientState(
+                    message = UiText.Resource(
+                        R.string.settings_msg_save_failed,
+                        listOf(e.message.orEmpty()),
+                    ),
+                )
             }
         }
     }
@@ -87,9 +98,16 @@ class SettingsViewModel(
             val result = repo.syncInbox()
             transient.value = TransientState(
                 message = result.fold(
-                    onSuccess = { n -> "连接成功，拉到 $n 封新邮件" },
-                    onFailure = { "连接失败：${it.message}" },
-                )
+                    onSuccess = { n ->
+                        UiText.Resource(R.string.settings_msg_test_success, listOf(n))
+                    },
+                    onFailure = { e ->
+                        UiText.Resource(
+                            R.string.settings_msg_test_failed,
+                            listOf(e.message.orEmpty()),
+                        )
+                    },
+                ),
             )
         }
     }
@@ -97,26 +115,48 @@ class SettingsViewModel(
     /**
      * 保存 SELF / AGENT 成功后自动触发一次拉取，不再等 15 分钟的周期性 Worker。
      * - 两个账户都已配置：立即 syncInbox，结果回到 snackbar
-     * - 只配了一方：提示用户继续配另一方（syncInbox 会报缺少 AGENT/SELF的错）
+     * - 只配了一方：提示用户继续配另一方（syncInbox 会报缺少 AGENT/SELF 的错）
      */
     private fun autoSyncAfterSave(savedLabel: String) {
         viewModelScope.launch {
             val self = repo.getSelfAccount()
             val agent = repo.getAgentAccount()
             if (self == null || agent == null) {
-                val missing = if (self == null) "自己的邮箱 SELF" else "AI 的邮箱 AGENT"
+                // 把两个"缺哪侧"拆成独立文案，而不是运行时拼接本地化片段，
+                // ViewModel 因此不需要持 Context。
+                val msgResId = if (self == null) {
+                    R.string.settings_msg_saved_missing_self
+                } else {
+                    R.string.settings_msg_saved_missing_agent
+                }
                 transient.value = TransientState(
-                    message = "$savedLabel 已保存，请继续配置${missing}后才能拉取邮件",
+                    message = UiText.Resource(msgResId, listOf(savedLabel)),
                 )
                 return@launch
             }
-            transient.value = TransientState(busy = true, message = "$savedLabel 已保存，正在拉取邮件……")
+            transient.value = TransientState(
+                busy = true,
+                message = UiText.Resource(
+                    R.string.settings_msg_saved_syncing,
+                    listOf(savedLabel),
+                ),
+            )
             val result = repo.syncInbox()
             transient.value = TransientState(
                 message = result.fold(
-                    onSuccess = { n -> "$savedLabel 已保存，拉到 $n 封新邮件" },
-                    onFailure = { "$savedLabel 已保存，但拉取失败：${it.message}" },
-                )
+                    onSuccess = { n ->
+                        UiText.Resource(
+                            R.string.settings_msg_saved_synced,
+                            listOf(savedLabel, n),
+                        )
+                    },
+                    onFailure = { e ->
+                        UiText.Resource(
+                            R.string.settings_msg_saved_sync_failed,
+                            listOf(savedLabel, e.message.orEmpty()),
+                        )
+                    },
+                ),
             )
         }
     }
@@ -126,7 +166,7 @@ class SettingsViewModel(
     }
 
     private data class TransientState(
-        val message: String? = null,
+        val message: UiText? = null,
         val busy: Boolean = false,
     )
 

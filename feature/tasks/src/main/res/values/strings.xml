@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 任务列表 -->
+    <string name="tasks_title">任务</string>
+    <string name="tasks_action_settings">设置</string>
+    <string name="tasks_action_new">新建</string>
+    <string name="tasks_empty_title">还没有任务</string>
+    <string name="tasks_empty_hint">点右下角 + 发第一封邮件给家里的 AI</string>
+    <string name="tasks_untitled">(无标题)</string>
+
+    <!-- 任务详情 -->
+    <string name="task_detail_loading">加载中…</string>
+    <string name="task_detail_empty">暂无消息</string>
+    <string name="task_detail_bubble_me">我</string>
+    <string name="task_detail_bubble_ai">AI</string>
+    <!-- %1$d = 附件数量 -->
+    <string name="task_detail_attachments_count">📎 %1$d 个附件</string>
+    <string name="task_detail_reply_placeholder">回复…</string>
+    <string name="task_detail_send_failed">发送失败</string>
+</resources>

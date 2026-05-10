@@ -36,10 +36,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.szgenle.agentpost.core.model.TaskMessage
+import com.szgenle.agentpost.core.ui.R as CoreUiR
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -52,11 +54,12 @@ fun TaskDetailRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = androidx.compose.ui.platform.LocalContext.current
     var reply by remember { mutableStateOf("") }
 
     LaunchedEffect(state.error) {
         val e = state.error ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(e)
+        snackbarHostState.showSnackbar(e.asString(context))
         viewModel.consumeError()
     }
 
@@ -71,9 +74,15 @@ fun TaskDetailRoute(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.task?.title?.ifEmpty { "(无标题)" } ?: "加载中…") },
+                title = {
+                    val untitled = stringResource(R.string.tasks_untitled)
+                    val loading = stringResource(R.string.task_detail_loading)
+                    Text(state.task?.title?.ifEmpty { untitled } ?: loading)
+                },
                 navigationIcon = {
-                    TextButton(onClick = onBack) { Text("返回") }
+                    TextButton(onClick = onBack) {
+                        Text(stringResource(CoreUiR.string.common_back))
+                    }
                 },
             )
         },
@@ -89,7 +98,7 @@ fun TaskDetailRoute(
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("暂无消息", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.task_detail_empty), style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
                 LazyColumn(
@@ -143,7 +152,11 @@ private fun MessageBubble(msg: TaskMessage) {
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
-                    text = if (isMine) "我" else "AI",
+                    text = if (isMine) {
+                        stringResource(R.string.task_detail_bubble_me)
+                    } else {
+                        stringResource(R.string.task_detail_bubble_ai)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                 )
                 Spacer(Modifier.height(4.dp))
@@ -154,7 +167,10 @@ private fun MessageBubble(msg: TaskMessage) {
                 if (msg.attachments.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "📎 ${msg.attachments.size} 个附件",
+                        text = stringResource(
+                            R.string.task_detail_attachments_count,
+                            msg.attachments.size,
+                        ),
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
@@ -186,7 +202,7 @@ private fun ReplyBar(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text("回复…") },
+            placeholder = { Text(stringResource(R.string.task_detail_reply_placeholder)) },
             modifier = Modifier.weight(1f),
             maxLines = 4,
         )
@@ -194,7 +210,13 @@ private fun ReplyBar(
             onClick = onSend,
             enabled = !sending && value.isNotBlank(),
         ) {
-            Text(if (sending) "发送中" else "发送")
+            Text(
+                if (sending) {
+                    stringResource(CoreUiR.string.common_sending)
+                } else {
+                    stringResource(CoreUiR.string.common_send)
+                },
+            )
         }
     }
 }

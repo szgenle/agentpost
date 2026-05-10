@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="new_task_title">新建任务</string>
+    <string name="new_task_subject_label">任务标题（邮件主题）</string>
+    <string name="new_task_body_label">正文（指令内容）</string>
+    <string name="new_task_sending">发送中...</string>
+    <string name="new_task_send_failed">发送失败</string>
+</resources>

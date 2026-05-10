@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- English placeholder. TODO: proofread with native speaker before shipping en locale. -->
+    <string name="common_back">Back</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_save">Save</string>
+    <string name="common_send">Send</string>
+    <string name="common_sending">Sending</string>
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- English placeholder. TODO: proofread before shipping. -->
+    <string name="new_task_title">New task</string>
+    <string name="new_task_subject_label">Task title (email subject)</string>
+    <string name="new_task_body_label">Body (instructions)</string>
+    <string name="new_task_sending">Sending…</string>
+    <string name="new_task_send_failed">Send failed</string>
+</resources>

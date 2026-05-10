@@ -7,7 +7,7 @@
 
     <application
         android:name=".AgentPostApp"
-        android:label="AgentPost"
+        android:label="@string/app_name"
         android:allowBackup="false"
         android:supportsRtl="true"
         android:theme="@style/Theme.AgentPost">

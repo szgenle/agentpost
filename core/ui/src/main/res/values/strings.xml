@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 通用词（跨 feature 复用）。新增条目时保持中英文同步。 -->
+    <string name="common_back">返回</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_save">保存</string>
+    <string name="common_send">发送</string>
+    <string name="common_sending">发送中</string>
+</resources>

@@ -22,6 +22,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -32,6 +34,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
+import com.szgenle.agentpost.core.ui.UiText
+import com.szgenle.agentpost.core.ui.R as CoreUiR
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,7 +44,7 @@ import kotlinx.coroutines.launch
 data class NewTaskUiState(
     val busy: Boolean = false,
     val sentTaskId: String? = null,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 class NewTaskViewModel(private val repo: MailRepository) : ViewModel() {
@@ -53,7 +57,16 @@ class NewTaskViewModel(private val repo: MailRepository) : ViewModel() {
             val result = repo.sendNewTask(title = title, body = body, attachments = emptyList())
             _state.value = result.fold(
                 onSuccess = { NewTaskUiState(sentTaskId = it) },
-                onFailure = { NewTaskUiState(error = it.message ?: "发送失败") },
+                onFailure = { e ->
+                    // 服务端错误优先直接展示，其次才 fallback 到本地资源
+                    val msg = e.message
+                    val uiText = if (!msg.isNullOrBlank()) {
+                        UiText.Dynamic(msg)
+                    } else {
+                        UiText.Resource(R.string.new_task_send_failed)
+                    }
+                    NewTaskUiState(error = uiText)
+                },
             )
         }
     }
@@ -77,6 +90,7 @@ fun NewTaskRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
 
@@ -88,16 +102,18 @@ fun NewTaskRoute(
     }
     LaunchedEffect(state.error) {
         val e = state.error ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(e)
+        snackbarHostState.showSnackbar(e.asString(context))
         viewModel.consumeError()
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("新建任务") },
+                title = { Text(stringResource(R.string.new_task_title)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) { Text("返回") }
+                    TextButton(onClick = onBack) {
+                        Text(stringResource(CoreUiR.string.common_back))
+                    }
                 },
             )
         },
@@ -113,14 +129,14 @@ fun NewTaskRoute(
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("任务标题（邮件主题）") },
+                label = { Text(stringResource(R.string.new_task_subject_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
             )
             OutlinedTextField(
                 value = body,
                 onValueChange = { body = it },
-                label = { Text("正文（指令内容）") },
+                label = { Text(stringResource(R.string.new_task_body_label)) },
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 6,
             )
@@ -129,7 +145,13 @@ fun NewTaskRoute(
                 enabled = !state.busy && title.isNotBlank() && body.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (state.busy) "发送中..." else "发送")
+                Text(
+                    if (state.busy) {
+                        stringResource(R.string.new_task_sending)
+                    } else {
+                        stringResource(CoreUiR.string.common_send)
+                    },
+                )
             }
         }
     }

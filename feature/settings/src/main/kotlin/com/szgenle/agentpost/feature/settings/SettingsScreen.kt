@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.szgenle.agentpost.core.mail.MailProviderPreset
 import com.szgenle.agentpost.core.mail.MailProviderPresets
+import com.szgenle.agentpost.core.ui.R as CoreUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,20 +49,23 @@ fun SettingsRoute(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     // 提示消息 → Snackbar
     LaunchedEffect(state.message) {
         val msg = state.message ?: return@LaunchedEffect
-        snackbarHostState.showSnackbar(msg)
+        snackbarHostState.showSnackbar(msg.asString(context))
         viewModel.clearMessage()
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("设置") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) { Text("返回") }
+                    TextButton(onClick = onBack) {
+                        Text(stringResource(CoreUiR.string.common_back))
+                    }
                 },
             )
         },
@@ -115,9 +121,15 @@ private fun SelfSection(
         )
     }
 
-    Text("SELF（我的邮箱）", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+    Text(
+        stringResource(R.string.settings_self_section),
+        style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+    )
 
-    Text("邮箱服务商", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+    Text(
+        stringResource(R.string.settings_provider),
+        style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+    )
     ProviderChipRow(
         presets = MailProviderPresets.ALL,
         selectedId = selectedPresetId,
@@ -127,7 +139,7 @@ private fun SelfSection(
     OutlinedTextField(
         value = form.displayName,
         onValueChange = { form = form.copy(displayName = it) },
-        label = { Text("显示名称（可选）") },
+        label = { Text(stringResource(R.string.settings_display_name_optional)) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
     )
@@ -140,20 +152,23 @@ private fun SelfSection(
                 MailProviderPresets.matchByEmail(newEmail)?.let(::applyPreset)
             }
         },
-        label = { Text("邮箱地址") },
+        label = { Text(stringResource(R.string.settings_email_address)) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
     )
     OutlinedTextField(
         value = form.password,
         onValueChange = { form = form.copy(password = it) },
-        label = { Text("密码 / App Password") },
+        label = { Text(stringResource(R.string.settings_password)) },
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
     )
 
-    Text("IMAP", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+    Text(
+        stringResource(R.string.settings_imap),
+        style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+    )
     HostPortRow(
         host = form.imapHost,
         port = form.imapPort,
@@ -161,12 +176,15 @@ private fun SelfSection(
         onPort = { form = form.copy(imapPort = it) },
     )
     SwitchRow(
-        label = "SSL",
+        label = stringResource(R.string.settings_ssl),
         checked = form.imapUseSsl,
         onChange = { form = form.copy(imapUseSsl = it) },
     )
 
-    Text("SMTP", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+    Text(
+        stringResource(R.string.settings_smtp),
+        style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
+    )
     HostPortRow(
         host = form.smtpHost,
         port = form.smtpPort,
@@ -174,7 +192,7 @@ private fun SelfSection(
         onPort = { form = form.copy(smtpPort = it) },
     )
     SwitchRow(
-        label = "STARTTLS",
+        label = stringResource(R.string.settings_starttls),
         checked = form.smtpUseStartTls,
         onChange = { form = form.copy(smtpUseStartTls = it) },
     )
@@ -187,12 +205,12 @@ private fun SelfSection(
             onClick = { onSave(form) },
             enabled = !busy,
             modifier = Modifier.weight(1f),
-        ) { Text("保存 SELF") }
+        ) { Text(stringResource(R.string.settings_save_self)) }
         OutlinedButton(
             onClick = onTest,
             enabled = !busy,
             modifier = Modifier.weight(1f),
-        ) { Text("测试拉取") }
+        ) { Text(stringResource(R.string.settings_test_connection)) }
     }
 }
 
@@ -206,18 +224,21 @@ private fun AgentSection(
     var name by remember(initialDisplayName) { mutableStateOf(initialDisplayName) }
     var email by remember(initialEmail) { mutableStateOf(initialEmail) }
 
-    Text("AGENT（家里 AI 的邮箱）", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+    Text(
+        stringResource(R.string.settings_agent_section),
+        style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+    )
     OutlinedTextField(
         value = name,
         onValueChange = { name = it },
-        label = { Text("显示名称（可选）") },
+        label = { Text(stringResource(R.string.settings_display_name_optional)) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
     )
     OutlinedTextField(
         value = email,
         onValueChange = { email = it },
-        label = { Text("邮箱地址") },
+        label = { Text(stringResource(R.string.settings_email_address)) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
     )
@@ -225,7 +246,7 @@ private fun AgentSection(
         onClick = { onSave(name, email) },
         enabled = !busy,
         modifier = Modifier.fillMaxWidth(),
-    ) { Text("保存 AGENT") }
+    ) { Text(stringResource(R.string.settings_save_agent)) }
 }
 
 @Composable
@@ -265,14 +286,14 @@ private fun HostPortRow(
         OutlinedTextField(
             value = host,
             onValueChange = onHost,
-            label = { Text("Host") },
+            label = { Text(stringResource(R.string.settings_host)) },
             modifier = Modifier.weight(2f),
             singleLine = true,
         )
         OutlinedTextField(
             value = port.toString(),
             onValueChange = { s -> onPort(s.filter { it.isDigit() }.toIntOrNull() ?: 0) },
-            label = { Text("Port") },
+            label = { Text(stringResource(R.string.settings_port)) },
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = KeyboardType.Number,
             ),

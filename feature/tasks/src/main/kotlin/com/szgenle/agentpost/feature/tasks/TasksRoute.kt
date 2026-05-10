@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -62,19 +63,23 @@ fun TasksRoute(
 ) {
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
 
+    val untitled = stringResource(R.string.tasks_untitled)
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("任务") },
+                title = { Text(stringResource(R.string.tasks_title)) },
                 actions = {
-                    TextButton(onClick = onOpenSettings) { Text("设置") }
+                    TextButton(onClick = onOpenSettings) {
+                        Text(stringResource(R.string.tasks_action_settings))
+                    }
                 },
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onOpenNewTask,
-                text = { Text("新建") },
+                text = { Text(stringResource(R.string.tasks_action_new)) },
+                // "+" 是视觉符号，不做国际化
                 icon = { Text("+") },
             )
         },
@@ -90,9 +95,12 @@ fun TasksRoute(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("还没有任务", style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "点右下角 + 发第一封邮件给家里的 AI",
+                        stringResource(R.string.tasks_empty_title),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        stringResource(R.string.tasks_empty_hint),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -101,7 +109,7 @@ fun TasksRoute(
             LazyColumn(modifier = Modifier.padding(padding)) {
                 items(tasks, key = { it.id }) { task ->
                     ListItem(
-                        headlineContent = { Text(task.title.ifEmpty { "(无标题)" }) },
+                        headlineContent = { Text(task.title.ifEmpty { untitled }) },
                         supportingContent = { Text("lastActivity=${task.lastActivityAt}") },
                         modifier = Modifier.clickable { onOpenTask(task.id) },
                     )

@@ -11,6 +11,7 @@ import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
 import com.szgenle.agentpost.core.model.Task
 import com.szgenle.agentpost.core.model.TaskMessage
+import com.szgenle.agentpost.core.ui.UiText
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +26,7 @@ data class TaskDetailUiState(
     val task: Task? = null,
     val messages: List<TaskMessage> = emptyList(),
     val sending: Boolean = false,
-    val error: String? = null,
+    val error: UiText? = null,
 )
 
 class TaskDetailViewModel(
@@ -68,7 +69,15 @@ class TaskDetailViewModel(
             val r = repo.sendReply(taskId = taskId, body = body, attachments = emptyList())
             transient.value = r.fold(
                 onSuccess = { TransientState() },
-                onFailure = { TransientState(error = it.message ?: "发送失败") },
+                onFailure = { e ->
+                    val msg = e.message
+                    val uiText = if (!msg.isNullOrBlank()) {
+                        UiText.Dynamic(msg)
+                    } else {
+                        UiText.Resource(R.string.task_detail_send_failed)
+                    }
+                    TransientState(error = uiText)
+                },
             )
         }
     }
@@ -79,7 +88,7 @@ class TaskDetailViewModel(
 
     private data class TransientState(
         val sending: Boolean = false,
-        val error: String? = null,
+        val error: UiText? = null,
     )
 
     companion object {
