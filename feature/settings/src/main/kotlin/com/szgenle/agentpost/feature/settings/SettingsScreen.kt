@@ -148,12 +148,8 @@ fun SettingsRoute(
             val providerText = state.self?.email
                 ?.let { MailProviderPresets.matchByEmail(it)?.displayName }
                 ?: stringResource(R.string.settings_mail_provider_custom)
-            val selfMissing = state.self == null
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_mail)) },
-                supportingContent = if (selfMissing) {
-                    { Text(stringResource(R.string.settings_mail_require_self_first)) }
-                } else null,
                 trailingContent = {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -168,7 +164,7 @@ fun SettingsRoute(
                         )
                     }
                 },
-                modifier = Modifier.clickable(enabled = !selfMissing, onClick = onOpenMail),
+                modifier = Modifier.clickable(onClick = onOpenMail),
             )
             HorizontalDivider()
 

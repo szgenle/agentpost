@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -32,14 +33,19 @@ class MailSetupViewModel(
 
     private val transient = MutableStateFlow(TransientState())
 
+    // Vault 中是否已存过 SELF 密码。self 每次变化时重新查一次，
+    // 用于区分"仅创建了身份占位记录"与"已完整配置过密码"两种状态。
+    private val hasPasswordFlow = repo.observeSelfAccount()
+        .map { repo.hasSelfPassword() }
+
     val uiState: StateFlow<MailSetupUiState> = combine(
         repo.observeSelfAccount(),
+        hasPasswordFlow,
         transient,
-    ) { self, t ->
+    ) { self, hasPwd, t ->
         MailSetupUiState(
             self = self,
-            // 凡是已经存过 SELF，视为已有密码。密码实际存 CredentialsVault，这里只用 existence 判断。
-            hasExistingPassword = self != null,
+            hasExistingPassword = hasPwd,
             busy = t.busy,
             message = t.message,
         )

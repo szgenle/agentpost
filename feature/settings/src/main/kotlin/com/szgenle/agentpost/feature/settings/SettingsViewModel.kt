@@ -86,30 +86,18 @@ class SettingsViewModel(
     }
 
     /**
-     * 编辑"我"的身份（displayName + email）。保留原 IMAP/SMTP/密码。
-     * 若尚未建立 SELF 账户（password 未曾写入），拒绝本入口，引导用户先走邮箱设置。
+     * 编辑"我"的身份（displayName + email）。
+     *
+     * 该入口不依赖"邮箱设置"：SELF 不存在时会创建一条仅含身份的占位记录，
+     * IMAP/SMTP/密码后续由"邮箱设置"补齐。
      */
     fun saveSelfIdentity(displayName: String, email: String) {
         viewModelScope.launch {
-            val existing = repo.getSelfAccount()
-            if (existing == null) {
-                transient.value = TransientState(
-                    message = UiText.Resource(R.string.settings_identity_require_mail_first),
-                )
-                return@launch
-            }
             transient.value = TransientState(busy = true)
             runCatching {
-                repo.saveSelfAccount(
+                repo.saveSelfIdentity(
                     displayName = displayName.ifBlank { email },
                     email = email.trim(),
-                    imapHost = existing.imapHost,
-                    imapPort = existing.imapPort,
-                    imapUseSsl = existing.imapUseSsl,
-                    smtpHost = existing.smtpHost,
-                    smtpPort = existing.smtpPort,
-                    smtpUseStartTls = existing.smtpUseStartTls,
-                    password = null, // 留空=不改，沿用 Vault 已有凭据
                 )
             }.onFailure { e ->
                 transient.value = TransientState(

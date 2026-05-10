@@ -50,11 +50,49 @@ class MailRepository internal constructor(
     suspend fun getAgentAccount(): Account? = accountDao.getFirstByType(AccountType.AGENT)
 
     /**
-     * 保存（或覆盖）SELF 账户。密码写入 [CredentialsVault]，Account 表只存 credentialKey 引用。
+     * 判断 SELF 账户是否已经存过密码（Vault 中是否有对应条目）。
+     *
+     * 用于 UI 区分"只设了身份、尚未配置密码"与"完整设置过"两种状态。
+     */
+    suspend fun hasSelfPassword(): Boolean {
+        val existing = accountDao.getFirstByType(AccountType.SELF) ?: return false
+        return vault.contains(existing.credentialKey)
+    }
+
+    /**
+     * 仅保存 SELF 的身份信息（displayName + email），不涉及 IMAP/SMTP/密码。
+     *
+     * 允许在 SELF 尚未建立时创建一条仅含身份的占位记录，host/port/ssl 留空，
+     * 后续由"邮箱设置"入口补齐。用于破除"我"与"邮箱设置"的先后循环依赖。
+     */
+    suspend fun saveSelfIdentity(displayName: String, email: String) {
+        val existing = accountDao.getFirstByType(AccountType.SELF)
+        val id = existing?.id ?: UUID.randomUUID().toString()
+        val credentialKey = existing?.credentialKey ?: "self_$id"
+        accountDao.upsert(
+            Account(
+                id = id,
+                type = AccountType.SELF,
+                displayName = displayName,
+                email = email,
+                imapHost = existing?.imapHost ?: "",
+                imapPort = existing?.imapPort ?: 993,
+                imapUseSsl = existing?.imapUseSsl ?: true,
+                smtpHost = existing?.smtpHost ?: "",
+                smtpPort = existing?.smtpPort ?: 587,
+                smtpUseStartTls = existing?.smtpUseStartTls ?: true,
+                credentialKey = credentialKey,
+                createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+            )
+        )
+    }
+
+    /**
+     * 保存（或覆盖）SELF 账户完整配置。密码写入 [CredentialsVault]，Account 表只存 credentialKey 引用。
      *
      * password 语义：
      * - 非 null：覆盖写入 Vault；
-     * - null：保留原有凭据（用于"留空=不改"场景）。此时 existing 必须存在，否则抛异常。
+     * - null：保留原有凭据（"留空=不改"）。此时 Vault 中必须已存在对应凭据，否则抛异常。
      */
     suspend fun saveSelfAccount(
         displayName: String,
@@ -68,11 +106,11 @@ class MailRepository internal constructor(
         password: String?,
     ) {
         val existing = accountDao.getFirstByType(AccountType.SELF)
-        if (existing == null && password == null) {
-            throw IllegalArgumentException("Creating a new SELF account requires a password.")
-        }
         val id = existing?.id ?: UUID.randomUUID().toString()
         val credentialKey = existing?.credentialKey ?: "self_$id"
+        if (password == null && !vault.contains(credentialKey)) {
+            throw IllegalArgumentException("Saving SELF account requires a password when none is stored.")
+        }
         if (password != null) {
             vault.put(credentialKey, password)
         }
