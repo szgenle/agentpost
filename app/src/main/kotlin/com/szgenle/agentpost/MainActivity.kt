@@ -26,6 +26,7 @@ import com.szgenle.agentpost.feature.settings.SettingsRoute
 import com.szgenle.agentpost.feature.tasks.TASK_ID_ARG
 import com.szgenle.agentpost.feature.tasks.TaskDetailRoute
 import com.szgenle.agentpost.feature.tasks.TasksRoute
+import com.szgenle.agentpost.feature.tasks.UnclassifiedRoute
 import com.szgenle.agentpost.notification.NotificationController
 
 class MainActivity : ComponentActivity() {
@@ -74,11 +75,12 @@ private fun Intent.readDeepLinkTaskId(): String? =
     getStringExtra(NotificationController.EXTRA_DEEPLINK_TASK_ID)?.takeIf { it.isNotBlank() }
 
 /**
- * MVP 导航：tasks（起始页）/ task/{taskId} / newtask / settings / settings/mail / settings/fetch。
+ * MVP 导航：tasks（起始页）/ task/{taskId} / newtask / unclassified / settings / settings/mail / settings/fetch。
  */
 private object Routes {
     const val TASKS = "tasks"
     const val NEW_TASK = "newtask"
+    const val UNCLASSIFIED = "unclassified"
     const val SETTINGS = "settings"
     const val SETTINGS_MAIL = "settings/mail"
     const val SETTINGS_FETCH = "settings/fetch"
@@ -107,7 +109,11 @@ fun AgentPostNavHost(pendingDeepLinkTaskId: MutableState<String?>) {
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenNewTask = { navController.navigate(Routes.NEW_TASK) },
                 onOpenTask = { taskId -> navController.navigate(Routes.taskDetail(taskId)) },
+                onOpenUnclassified = { navController.navigate(Routes.UNCLASSIFIED) },
             )
+        }
+        composable(Routes.UNCLASSIFIED) {
+            UnclassifiedRoute(onBack = { navController.popBackStack() })
         }
         composable(
             route = Routes.TASK_DETAIL,

@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.szgenle.agentpost.core.ui.R as CoreUiR
@@ -65,6 +66,18 @@ class TasksViewModel(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),
     )
+
+    /**
+     * 未分类消息条数。值 > 0 时任务列表顶部会显示一条「未分类 · N 条」入口，
+     * 点进可手动指派到具体 Task。
+     */
+    val unclassifiedCount: StateFlow<Int> = repo.observeUnclassifiedMessages()
+        .map { it.size }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = 0,
+        )
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -106,9 +119,11 @@ fun TasksRoute(
     onOpenSettings: () -> Unit,
     onOpenNewTask: () -> Unit,
     onOpenTask: (String) -> Unit,
+    onOpenUnclassified: () -> Unit,
     viewModel: TasksViewModel = viewModel(factory = TasksViewModel.Factory),
 ) {
     val briefs by viewModel.briefs.collectAsStateWithLifecycle()
+    val unclassifiedCount by viewModel.unclassifiedCount.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val syncError by viewModel.syncError.collectAsStateWithLifecycle()
 
@@ -153,7 +168,7 @@ fun TasksRoute(
                 .fillMaxSize()
                 .padding(padding),
         ) {
-            if (briefs.isEmpty()) {
+            if (briefs.isEmpty() && unclassifiedCount == 0) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
@@ -174,6 +189,28 @@ fun TasksRoute(
                 }
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    // 顶部固定行：未分类消息入口。条数为 0 时整行不渲染，
+                    // 使用者看不到干扰；一旦有兜底邮件再置顶提醒。
+                    if (unclassifiedCount > 0) {
+                        item(key = "__unclassified_entry__") {
+                            ListItem(
+                                headlineContent = {
+                                    Text(stringResource(R.string.tasks_unclassified_entry))
+                                },
+                                supportingContent = {
+                                    Text(
+                                        stringResource(
+                                            R.string.tasks_unclassified_entry_hint,
+                                        ),
+                                    )
+                                },
+                                trailingContent = {
+                                    Badge { Text(unclassifiedCount.toString()) }
+                                },
+                                modifier = Modifier.clickable { onOpenUnclassified() },
+                            )
+                        }
+                    }
                     items(briefs, key = { it.task.id }) { brief ->
                         ListItem(
                             overlineContent = {

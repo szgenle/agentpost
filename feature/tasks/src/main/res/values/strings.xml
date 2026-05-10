@@ -12,6 +12,20 @@
     <string name="tasks_item_no_messages">(暂无消息)</string>
     <string name="tasks_sync_failed">同步失败</string>
 
+    <!-- 任务列表顶部未分类入口 -->
+    <string name="tasks_unclassified_entry">📬 未分类</string>
+    <string name="tasks_unclassified_entry_hint">路由不明的新邮件，点进手动指派到任务</string>
+
+    <!-- 未分类管理页 -->
+    <string name="unclassified_title">未分类消息</string>
+    <string name="unclassified_empty">暂无待指派的消息</string>
+    <string name="unclassified_action_assign">指派…</string>
+    <string name="unclassified_picker_title">指派到任务</string>
+    <string name="unclassified_picker_empty">还没有任务，请先新建一个任务后回来指派</string>
+    <!-- %s = 目标任务标题 -->
+    <string name="unclassified_assigned_to">已指派到：%s</string>
+    <string name="unclassified_assign_failed">指派失败</string>
+
     <!-- 任务详情 -->
     <string name="task_detail_loading">加载中…</string>
     <string name="task_detail_empty">暂无消息</string>

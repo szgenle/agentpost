@@ -12,6 +12,20 @@
     <string name="tasks_item_no_messages">(No messages yet)</string>
     <string name="tasks_sync_failed">Sync failed</string>
 
+    <!-- Tasks list top entry: unclassified -->
+    <string name="tasks_unclassified_entry">📬 Unclassified</string>
+    <string name="tasks_unclassified_entry_hint">New emails that couldn’t be routed; tap to assign manually</string>
+
+    <!-- Unclassified management page -->
+    <string name="unclassified_title">Unclassified</string>
+    <string name="unclassified_empty">No messages awaiting assignment</string>
+    <string name="unclassified_action_assign">Assign…</string>
+    <string name="unclassified_picker_title">Assign to task</string>
+    <string name="unclassified_picker_empty">No tasks yet. Create one first, then come back to assign.</string>
+    <!-- %s = target task title -->
+    <string name="unclassified_assigned_to">Assigned to: %s</string>
+    <string name="unclassified_assign_failed">Failed to assign</string>
+
     <string name="task_detail_loading">Loading…</string>
     <string name="task_detail_empty">No messages</string>
     <string name="task_detail_bubble_me">Me</string>
