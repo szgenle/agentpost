@@ -48,7 +48,7 @@ object ForegroundSyncScheduler : DefaultLifecycleObserver {
                     AppServiceLocator.mailRepository.syncInbox()
                 }.onSuccess { result ->
                     result.fold(
-                        onSuccess = { n -> if (n > 0) Log.i(TAG, "fg sync new=$n") },
+                        onSuccess = { r -> if (r.totalNew > 0) Log.i(TAG, "fg sync new=${r.totalNew}") },
                         onFailure = { e -> Log.w(TAG, "fg sync failed: ${e.message}") },
                     )
                 }.onFailure { t ->

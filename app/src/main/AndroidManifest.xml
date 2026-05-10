@@ -4,6 +4,8 @@
     <!-- SMTP/IMAP 网络访问 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 13+ 发通知需要运行时权限 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".AgentPostApp"
@@ -16,6 +18,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.AgentPost">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

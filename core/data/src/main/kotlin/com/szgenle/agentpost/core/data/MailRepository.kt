@@ -219,18 +219,23 @@ class MailRepository internal constructor(
     // 同步
     // ============================================================
 
-    /** 从 SELF 邮箱拉新邮件；返回本次入库的新消息数量。 */
-    suspend fun syncInbox(): Result<Int> = runCatching {
+    /**
+     * 从 SELF 邮箱拉新邮件；返回 [SyncResult]，内含本次入库的新消息数量与按任务归组的摘要，
+     * 给通知层按 Task 分组推通知用。
+     */
+    suspend fun syncInbox(): Result<SyncResult> = runCatching {
         val self = requireSelf()
         val agent = requireAgent()
         val creds = self.toCredentials()
         val sinceUid = prefs.getLastSyncUid(self.id)
 
         val incomings = fetcher.fetchNew(creds, sinceUid)
-        if (incomings.isEmpty()) return@runCatching 0
+        if (incomings.isEmpty()) return@runCatching SyncResult(totalNew = 0, perTask = emptyList())
 
         ensureUnclassifiedTask(self.id)
         val router = TaskRouter(taskDao, messageDao)
+        // 保留插入顺序，同时便于按 taskId 累积
+        val perTaskBuckets = linkedMapOf<String, MutableTaskSummary>()
         var inserted = 0
         for (mail in incomings) {
             if (messageDao.exists(mail.messageId)) continue
@@ -259,12 +264,54 @@ class MailRepository internal constructor(
                 taskDao.touch(targetTaskId, mail.sentAt)
             }
             inserted++
+
+            // 统计通知摘要：按任务累积条数，并记下最新一条的预览
+            val bucket = perTaskBuckets.getOrPut(targetTaskId) { MutableTaskSummary() }
+            bucket.newCount += 1
+            if (mail.sentAt >= bucket.latestSentAt) {
+                bucket.latestSentAt = mail.sentAt
+                bucket.latestPreview = previewOf(mail.body)
+                bucket.latestSubject = mail.subject
+            }
         }
         val newMaxUid = incomings.maxOf { it.imapUid }
         if (newMaxUid > sinceUid) {
             prefs.setLastSyncUid(self.id, newMaxUid)
         }
-        inserted
+
+        // 解析每个 bucket 的任务标题（未归类不给标题）
+        val perTask = perTaskBuckets.map { (taskId, s) ->
+            val title = if (taskId == SystemIds.UNCLASSIFIED_TASK_ID) {
+                ""
+            } else {
+                taskDao.getById(taskId)?.title.orEmpty()
+            }
+            TaskNewMessages(
+                taskId = taskId,
+                taskTitle = title,
+                newCount = s.newCount,
+                latestPreview = s.latestPreview,
+                latestSubject = s.latestSubject,
+                latestSentAt = s.latestSentAt,
+            )
+        }
+        SyncResult(totalNew = inserted, perTask = perTask)
+    }
+
+    private class MutableTaskSummary(
+        var newCount: Int = 0,
+        var latestSentAt: Long = Long.MIN_VALUE,
+        var latestPreview: String = "",
+        var latestSubject: String = "",
+    )
+
+    /** 取邮件正文的单行摘要：第一段非空行，最多 160 字。 */
+    private fun previewOf(body: String): String {
+        val firstLine = body.lineSequence()
+            .map { it.trim() }
+            .firstOrNull { it.isNotEmpty() }
+            ?: return ""
+        return if (firstLine.length <= 160) firstLine else firstLine.substring(0, 160) + "…"
     }
 
     // ============================================================
@@ -355,3 +402,33 @@ class MailRepository internal constructor(
 
 /** 给列表页的卡片级简要视图（后续可加 lastMessage / unreadCount）。 */
 data class TaskBrief(val task: Task)
+
+/**
+ * 单次 syncInbox 结果。通知层据此按 Task 分组推通知。
+ *
+ * @property totalNew 本次入库的新消息总条数（所有任务累加，含未归类）
+ * @property perTask 按任务归组的摘要，插入顺序与邮件到达顺序一致
+ */
+data class SyncResult(
+    val totalNew: Int,
+    val perTask: List<TaskNewMessages>,
+)
+
+/**
+ * 单个 Task 本次收到的新消息摘要。
+ *
+ * @property taskId 本地 Task 主键，`__UNCLASSIFIED__` 表示未归类占位
+ * @property taskTitle 任务标题；未归类为空串
+ * @property newCount 本次新增消息条数
+ * @property latestPreview 最新一条消息正文的单行摘要（最多 160 字，用于通知展开）
+ * @property latestSubject 最新一条消息的 Subject
+ * @property latestSentAt 最新一条消息的发送时间（epoch ms）
+ */
+data class TaskNewMessages(
+    val taskId: String,
+    val taskTitle: String,
+    val newCount: Int,
+    val latestPreview: String,
+    val latestSubject: String,
+    val latestSentAt: Long,
+)

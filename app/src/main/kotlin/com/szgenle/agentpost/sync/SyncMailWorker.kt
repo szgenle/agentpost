@@ -10,6 +10,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.szgenle.agentpost.core.data.AppServiceLocator
+import com.szgenle.agentpost.notification.NotificationController
 import java.util.concurrent.TimeUnit
 
 /**
@@ -31,8 +32,12 @@ class SyncMailWorker(
             val repo = AppServiceLocator.mailRepository
             val result = repo.syncInbox()
             result.fold(
-                onSuccess = { count ->
-                    Log.i(TAG, "syncInbox ok, new messages = $count")
+                onSuccess = { r ->
+                    Log.i(TAG, "syncInbox ok, new messages = ${r.totalNew}")
+                    if (r.totalNew > 0) {
+                        // 后台同步拉到新邮件 → 按 Task 分组推通知
+                        NotificationController.notifyNewMessages(applicationContext, r)
+                    }
                     Result.success()
                 },
                 onFailure = { err ->

@@ -85,8 +85,8 @@ class MailSetupViewModel(
             val result = repo.syncInbox()
             transient.value = TransientState(
                 message = result.fold(
-                    onSuccess = { n ->
-                        UiText.Resource(R.string.settings_msg_test_success, listOf(n))
+                    onSuccess = { r ->
+                        UiText.Resource(R.string.settings_msg_test_success, listOf(r.totalNew))
                     },
                     onFailure = { e ->
                         UiText.Resource(

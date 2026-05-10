@@ -1,10 +1,19 @@
 package com.szgenle.agentpost
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -17,17 +26,52 @@ import com.szgenle.agentpost.feature.settings.SettingsRoute
 import com.szgenle.agentpost.feature.tasks.TASK_ID_ARG
 import com.szgenle.agentpost.feature.tasks.TaskDetailRoute
 import com.szgenle.agentpost.feature.tasks.TasksRoute
+import com.szgenle.agentpost.notification.NotificationController
 
 class MainActivity : ComponentActivity() {
+
+    /**
+     * 从通知点击进来的 taskId：由 Activity 在 onCreate/onNewIntent 读取，
+     * 交给 Compose 层 [AgentPostNavHost] 以 LaunchedEffect 方式触发一次导航后清空。
+     */
+    private val pendingDeepLinkTaskId: MutableState<String?> = mutableStateOf(null)
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { /* 结果不影响主流程：拒绝后 NotificationController 会静默跳过 */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingDeepLinkTaskId.value = intent?.readDeepLinkTaskId()
+        maybeRequestNotificationPermission()
         setContent {
             MaterialTheme {
-                AgentPostNavHost()
+                AgentPostNavHost(pendingDeepLinkTaskId)
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // singleTop 下 Activity 复用，旧 intent 会被替换为新 intent 后再派发到这里
+        setIntent(intent)
+        intent.readDeepLinkTaskId()?.let { pendingDeepLinkTaskId.value = it }
+    }
+
+    private fun maybeRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.POST_NOTIFICATIONS,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (!granted) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 }
+
+private fun Intent.readDeepLinkTaskId(): String? =
+    getStringExtra(NotificationController.EXTRA_DEEPLINK_TASK_ID)?.takeIf { it.isNotBlank() }
 
 /**
  * MVP 导航：tasks（起始页）/ task/{taskId} / newtask / settings / settings/mail / settings/fetch。
@@ -43,8 +87,20 @@ private object Routes {
 }
 
 @Composable
-fun AgentPostNavHost() {
+fun AgentPostNavHost(pendingDeepLinkTaskId: MutableState<String?>) {
     val navController = rememberNavController()
+
+    // 深链导航：有 pending 值时跳到详情页并清空（支持冷启动 & 进程存活两种场景）
+    LaunchedEffect(pendingDeepLinkTaskId.value) {
+        val taskId = pendingDeepLinkTaskId.value ?: return@LaunchedEffect
+        navController.navigate(Routes.taskDetail(taskId)) {
+            // popUpTo 保证返回键能回到任务列表，不会累积历史栈
+            popUpTo(Routes.TASKS) { inclusive = false }
+            launchSingleTop = true
+        }
+        pendingDeepLinkTaskId.value = null
+    }
+
     NavHost(navController = navController, startDestination = Routes.TASKS) {
         composable(Routes.TASKS) {
             TasksRoute(

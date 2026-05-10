@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">AgentPost</string>
+
+    <!-- 通知：新邮件到达提醒 -->
+    <string name="notification_channel_name">新邮件</string>
+    <string name="notification_channel_description">AI 回复 / 新邮件到达时提醒</string>
+    <string name="notification_unclassified_title">未归类邮件</string>
+    <string name="notification_multi_count"> (共 %d 条)</string>
 </resources>

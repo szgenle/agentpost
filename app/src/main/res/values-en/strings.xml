@@ -2,4 +2,10 @@
 <resources>
     <!-- English placeholder. Keep app_name consistent with Chinese version (brand name). -->
     <string name="app_name">AgentPost</string>
+
+    <!-- Notifications: new mail arrival -->
+    <string name="notification_channel_name">New mail</string>
+    <string name="notification_channel_description">Alerts for AI replies and new mail</string>
+    <string name="notification_unclassified_title">Unclassified mail</string>
+    <string name="notification_multi_count"> (%d new)</string>
 </resources>
