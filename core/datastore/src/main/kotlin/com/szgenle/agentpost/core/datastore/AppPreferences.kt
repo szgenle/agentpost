@@ -73,10 +73,61 @@ class AppPreferences(context: Context) {
         }
     }
 
+    // --- 任务详情页回复草稿（按 taskId 分 key） ---
+    // 空串 ≡ 无草稿。放 DataStore 不放 Room 因为草稿状态不跨设备同步，
+    // 且边输边写 Room 成本偏高。
+    private fun draftReplyKey(taskId: String) =
+        stringPreferencesKey("draft_reply_$taskId")
+
+    fun observeDraftReply(taskId: String): Flow<String> =
+        store.data.map { it[draftReplyKey(taskId)].orEmpty() }
+
+    suspend fun getDraftReply(taskId: String): String =
+        observeDraftReply(taskId).first()
+
+    suspend fun setDraftReply(taskId: String, text: String) {
+        store.edit {
+            if (text.isEmpty()) it.remove(draftReplyKey(taskId)) else it[draftReplyKey(taskId)] = text
+        }
+    }
+
+    suspend fun clearDraftReply(taskId: String) {
+        store.edit { it.remove(draftReplyKey(taskId)) }
+    }
+
+    // --- 新建任务草稿（全局唯一一份） ---
+    fun observeNewTaskDraft(): Flow<NewTaskDraft> =
+        store.data.map {
+            NewTaskDraft(
+                subject = it[NEW_TASK_DRAFT_SUBJECT_KEY].orEmpty(),
+                body = it[NEW_TASK_DRAFT_BODY_KEY].orEmpty(),
+            )
+        }
+
+    suspend fun getNewTaskDraft(): NewTaskDraft = observeNewTaskDraft().first()
+
+    suspend fun setNewTaskDraft(subject: String, body: String) {
+        store.edit {
+            if (subject.isEmpty()) it.remove(NEW_TASK_DRAFT_SUBJECT_KEY)
+            else it[NEW_TASK_DRAFT_SUBJECT_KEY] = subject
+            if (body.isEmpty()) it.remove(NEW_TASK_DRAFT_BODY_KEY)
+            else it[NEW_TASK_DRAFT_BODY_KEY] = body
+        }
+    }
+
+    suspend fun clearNewTaskDraft() {
+        store.edit {
+            it.remove(NEW_TASK_DRAFT_SUBJECT_KEY)
+            it.remove(NEW_TASK_DRAFT_BODY_KEY)
+        }
+    }
+
     private companion object {
         val LANGUAGE_TAG_KEY = stringPreferencesKey("ui_language_tag")
         val FETCH_FG_SEC_KEY = intPreferencesKey("fetch_foreground_seconds")
         val FETCH_BG_MIN_KEY = intPreferencesKey("fetch_background_minutes")
+        val NEW_TASK_DRAFT_SUBJECT_KEY = stringPreferencesKey("new_task_draft_subject")
+        val NEW_TASK_DRAFT_BODY_KEY = stringPreferencesKey("new_task_draft_body")
 
         const val DEFAULT_FG_SEC = 60
         const val DEFAULT_BG_MIN = 15
@@ -88,3 +139,11 @@ data class FetchIntervals(
     val foregroundSeconds: Int,
     val backgroundMinutes: Int,
 )
+
+/** 新建任务草稿（subject 和 body 均为空时视为无草稿）。 */
+data class NewTaskDraft(
+    val subject: String,
+    val body: String,
+) {
+    val isEmpty: Boolean get() = subject.isEmpty() && body.isEmpty()
+}

@@ -21,4 +21,9 @@
     <string name="task_detail_attachments_count">📎 %1$d 个附件</string>
     <string name="task_detail_reply_placeholder">回复…</string>
     <string name="task_detail_send_failed">发送失败</string>
+
+    <!-- 气泡发送状态机 -->
+    <string name="task_detail_status_sending">发送中…</string>
+    <string name="task_detail_status_failed">发送失败</string>
+    <string name="task_detail_action_retry">重试</string>
 </resources>

@@ -19,4 +19,9 @@
     <string name="task_detail_attachments_count">📎 %1$d attachment(s)</string>
     <string name="task_detail_reply_placeholder">Reply…</string>
     <string name="task_detail_send_failed">Send failed</string>
+
+    <!-- Bubble send status machine -->
+    <string name="task_detail_status_sending">Sending…</string>
+    <string name="task_detail_status_failed">Failed</string>
+    <string name="task_detail_action_retry">Retry</string>
 </resources>

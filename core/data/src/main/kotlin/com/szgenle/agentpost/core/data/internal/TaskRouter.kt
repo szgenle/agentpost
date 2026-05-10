@@ -10,8 +10,8 @@ import com.szgenle.agentpost.core.mail.IncomingMail
  * 来信路由到 Task 的策略实现（见 HANDOVER 第 6 节）。
  *
  * 优先级（命中即返回）：
- * 1. In-Reply-To → 已存 TaskMessage.messageId → taskId
- * 2. References 倒序遍历 → 任一命中已存 TaskMessage.messageId → taskId
+ * 1. In-Reply-To → 已存 TaskMessage.externalMessageId → taskId
+ * 2. References 倒序遍历 → 任一命中已存 TaskMessage.externalMessageId → taskId
  * 3. References 首元素 → 匹配 Task.rootMessageId → taskId
  * 4. 兜底：Subject 去 Re: 后精确匹配 Task.title + agentAccountId
  * 5. 全未命中：返回 [SystemIds.UNCLASSIFIED_TASK_ID]
@@ -27,12 +27,12 @@ internal class TaskRouter(
     ): String {
         // 1. In-Reply-To
         mail.inReplyTo?.let { inReplyTo ->
-            messageDao.getByMessageId(inReplyTo)?.let { return it.taskId }
+            messageDao.getByExternalMessageId(inReplyTo)?.let { return it.taskId }
         }
 
         // 2. References 倒序（最近的先查）
         for (ref in mail.references.asReversed()) {
-            messageDao.getByMessageId(ref)?.let { return it.taskId }
+            messageDao.getByExternalMessageId(ref)?.let { return it.taskId }
         }
 
         // 3. References 首元素 vs rootMessageId

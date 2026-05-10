@@ -32,14 +32,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.szgenle.agentpost.core.model.SendStatus
 import com.szgenle.agentpost.core.model.TaskMessage
 import com.szgenle.agentpost.core.ui.time.RelativeTime
 import com.szgenle.agentpost.core.ui.R as CoreUiR
@@ -53,7 +57,6 @@ fun TaskDetailRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    var reply by remember { mutableStateOf("") }
 
     LaunchedEffect(state.error) {
         val e = state.error ?: return@LaunchedEffect
@@ -115,20 +118,22 @@ fun TaskDetailRoute(
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        items(state.messages, key = { it.messageId }) { msg ->
-                            MessageBubble(msg)
+                        items(state.messages, key = { it.id }) { msg ->
+                            MessageBubble(
+                                msg = msg,
+                                onRetry = { viewModel.retrySend(msg.id) },
+                            )
                         }
                     }
                 }
             }
 
             ReplyBar(
-                value = reply,
-                onValueChange = { reply = it },
+                value = state.draftReply,
+                onValueChange = viewModel::updateDraft,
                 sending = state.sending,
-                onSend = {
-                    viewModel.sendReply(reply)
-                    reply = ""
+                onSend = { text ->
+                    viewModel.sendReply(text)
                 },
             )
         }
@@ -136,17 +141,25 @@ fun TaskDetailRoute(
 }
 
 @Composable
-private fun MessageBubble(msg: TaskMessage) {
+private fun MessageBubble(
+    msg: TaskMessage,
+    onRetry: () -> Unit,
+) {
     val isMine = !msg.fromAgent
-    val containerColor = if (isMine) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
+    val failed = msg.sendStatus == SendStatus.FAILED
+    val inFlight = msg.sendStatus == SendStatus.PENDING || msg.sendStatus == SendStatus.SENDING
+
+    // FAILED 气泡用 errorContainer，在飞途（PENDING/SENDING）气泡深色半透，
+    // 并标标识文案说明状态。
+    val containerColor = when {
+        failed -> MaterialTheme.colorScheme.errorContainer
+        isMine -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
     }
-    val contentColor = if (isMine) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
+    val contentColor = when {
+        failed -> MaterialTheme.colorScheme.onErrorContainer
+        isMine -> MaterialTheme.colorScheme.onPrimaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     val context = LocalContext.current
 
@@ -185,10 +198,43 @@ private fun MessageBubble(msg: TaskMessage) {
                     )
                 }
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    text = RelativeTime.format(context, msg.sentAt),
-                    style = MaterialTheme.typography.labelSmall,
-                )
+                // 状态行：时间 + （可选）状态标签 / 重试按钮
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = RelativeTime.format(context, msg.sentAt),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                    when {
+                        inFlight -> Text(
+                            text = stringResource(R.string.task_detail_status_sending),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        failed -> {
+                            Text(
+                                text = stringResource(R.string.task_detail_status_failed),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                            TextButton(
+                                onClick = onRetry,
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                                    horizontal = 8.dp,
+                                    vertical = 0.dp,
+                                ),
+                            ) {
+                                Text(stringResource(R.string.task_detail_action_retry))
+                            }
+                        }
+                    }
+                }
+                if (failed && !msg.sendError.isNullOrBlank()) {
+                    Text(
+                        text = msg.sendError.orEmpty(),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
         }
     }
@@ -199,8 +245,25 @@ private fun ReplyBar(
     value: String,
     onValueChange: (String) -> Unit,
     sending: Boolean,
-    onSend: () -> Unit,
+    onSend: (String) -> Unit,
 ) {
+    // 本地托管 TextFieldValue 以保住光标位置。外部 value（来自 DataStore 异步回推）
+    // 只作为"初始化种子"和"外部清空信号"——否则异步回路里过期的 String 会把
+    // TextField 覆盖回去，导致新输入的字符被推到光标后面。
+    var field by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(value, TextRange(value.length)))
+    }
+    LaunchedEffect(value) {
+        // 只在两种情况下同步外部 value 到本地：
+        // 1) 本地空而外部非空：首次从 DataStore 加载草稿；
+        // 2) 外部为空而本地非空：外部主动清空（发送成功后）。
+        val localEmpty = field.text.isEmpty()
+        val remoteEmpty = value.isEmpty()
+        if (value != field.text && (localEmpty || remoteEmpty)) {
+            field = TextFieldValue(value, TextRange(value.length))
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -210,15 +273,18 @@ private fun ReplyBar(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         OutlinedTextField(
-            value = value,
-            onValueChange = onValueChange,
+            value = field,
+            onValueChange = {
+                field = it
+                if (it.text != value) onValueChange(it.text)
+            },
             placeholder = { Text(stringResource(R.string.task_detail_reply_placeholder)) },
             modifier = Modifier.weight(1f),
             maxLines = 4,
         )
         Button(
-            onClick = onSend,
-            enabled = !sending && value.isNotBlank(),
+            onClick = { onSend(field.text) },
+            enabled = !sending && field.text.isNotBlank(),
         ) {
             Text(
                 if (sending) {

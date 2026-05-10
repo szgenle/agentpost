@@ -15,6 +15,7 @@ import com.szgenle.agentpost.core.mail.OutgoingMail
 import com.szgenle.agentpost.core.model.Account
 import com.szgenle.agentpost.core.model.AccountType
 import com.szgenle.agentpost.core.model.Attachment
+import com.szgenle.agentpost.core.model.SendStatus
 import com.szgenle.agentpost.core.model.Task
 import com.szgenle.agentpost.core.model.TaskMessage
 import kotlinx.coroutines.flow.Flow
@@ -156,7 +157,8 @@ class MailRepository internal constructor(
         )
         messageDao.upsert(
             TaskMessage(
-                messageId = messageId,
+                id = UUID.randomUUID().toString(),
+                externalMessageId = messageId,
                 taskId = taskId,
                 fromAgent = false,
                 subject = title,
@@ -165,12 +167,25 @@ class MailRepository internal constructor(
                 inReplyTo = null,
                 sentAt = now,
                 isRead = true,
+                sendStatus = SendStatus.SENT,
+                sendError = null,
             )
         )
         taskId
     }
 
-    /** 回复一个已有 Task。失败时不落库。 */
+    /**
+     * 回复一个已有 Task。
+     *
+     * 发送流程采用状态机，前置校验失败（无账户 / Task 不存在 / 未归类）招 Result.failure；
+     * SMTP 失败不抛，只会在消息行写入 [SendStatus.FAILED] + [TaskMessage.sendError]，
+     * UI 通过气泡的红色态和重试按钮提示。
+     *
+     * 步骤：
+     * 1. 前置校验 → 拼 References 链
+     * 2. 记录一条 `PENDING` 占位（UI 立刻看到气泡），同步 touch Task
+     * 3. [dispatchSend] 内部转 SENDING、调 SMTP、结果回填
+     */
     suspend fun sendReply(
         taskId: String,
         body: String,
@@ -182,26 +197,18 @@ class MailRepository internal constructor(
         require(taskId != SystemIds.UNCLASSIFIED_TASK_ID) { "Cannot reply under unclassified placeholder" }
 
         val creds = self.toCredentials()
+        val replySubject = ensureReplyPrefix(task.title)
 
-        // References 链 = 已存在的消息链按时间升序
-        val existingMessageIds = messageDao.messageIdsByTaskOrderBySentAtAscOrNull(taskId)
+        // References 链 = 已收到回执的历史消息（按时间升序）
+        val existingMessageIds = messageDao.externalMessageIdsByTaskOrderBySentAtAsc(taskId)
         val lastMessageId = existingMessageIds.lastOrNull()
 
-        val replySubject = ensureReplyPrefix(task.title)
-        val outgoing = OutgoingMail(
-            toAddress = agent.email,
-            subject = replySubject,
-            body = body,
-            attachments = attachments,
-            inReplyToMessageId = lastMessageId,
-            references = existingMessageIds,
-        )
-        val messageId = sender.send(creds, outgoing)
-
         val now = System.currentTimeMillis()
+        val localId = UUID.randomUUID().toString()
         messageDao.upsert(
             TaskMessage(
-                messageId = messageId,
+                id = localId,
+                externalMessageId = null,
                 taskId = taskId,
                 fromAgent = false,
                 subject = replySubject,
@@ -210,9 +217,108 @@ class MailRepository internal constructor(
                 inReplyTo = lastMessageId,
                 sentAt = now,
                 isRead = true,
+                sendStatus = SendStatus.PENDING,
+                sendError = null,
             )
         )
         taskDao.touch(taskId, now)
+
+        dispatchSend(
+            localId = localId,
+            taskId = taskId,
+            toAddress = agent.email,
+            subject = replySubject,
+            body = body,
+            attachments = attachments,
+            inReplyTo = lastMessageId,
+            references = existingMessageIds,
+            creds = creds,
+        )
+    }
+
+    /**
+     * 重试一条 [SendStatus.FAILED] 的消息。
+     *
+     * MVP 限制：重试不携带附件（原始字节流未持久化，只存了 [Attachment] 元数据）。
+     * 重试时重新查询 References 链，以防期间收到了新的回执。
+     */
+    suspend fun retrySend(localId: String): Result<Unit> = runCatching {
+        val msg = requireNotNull(messageDao.getById(localId)) { "Message not found: $localId" }
+        require(msg.sendStatus == SendStatus.FAILED) {
+            "Only FAILED messages can be retried; current=${msg.sendStatus}"
+        }
+        val self = requireSelf()
+        val agent = requireAgent()
+        val creds = self.toCredentials()
+
+        val existingMessageIds = messageDao.externalMessageIdsByTaskOrderBySentAtAsc(msg.taskId)
+        val lastMessageId = existingMessageIds.lastOrNull()
+
+        dispatchSend(
+            localId = localId,
+            taskId = msg.taskId,
+            toAddress = agent.email,
+            subject = msg.subject,
+            body = msg.body,
+            attachments = emptyList(),
+            inReplyTo = lastMessageId,
+            references = existingMessageIds,
+            creds = creds,
+        )
+    }
+
+    /**
+     * 内部共用发送调度：SENDING → SMTP → SENT / FAILED。
+     * 所有异常在这里吸掉并落库为 FAILED，不再向上抛。
+     */
+    private suspend fun dispatchSend(
+        localId: String,
+        taskId: String,
+        toAddress: String,
+        subject: String,
+        body: String,
+        attachments: List<OutgoingAttachment>,
+        inReplyTo: String?,
+        references: List<String>,
+        creds: MailCredentials,
+    ) {
+        val startNow = System.currentTimeMillis()
+        messageDao.updateSendStatus(
+            id = localId,
+            status = SendStatus.SENDING,
+            externalMessageId = null,
+            sendError = null,
+            sentAt = startNow,
+        )
+        try {
+            val outgoing = OutgoingMail(
+                toAddress = toAddress,
+                subject = subject,
+                body = body,
+                attachments = attachments,
+                inReplyToMessageId = inReplyTo,
+                references = references,
+            )
+            val messageId = sender.send(creds, outgoing)
+            val endNow = System.currentTimeMillis()
+            messageDao.updateSendStatus(
+                id = localId,
+                status = SendStatus.SENT,
+                externalMessageId = messageId,
+                sendError = null,
+                sentAt = endNow,
+            )
+            taskDao.touch(taskId, endNow)
+        } catch (e: Exception) {
+            val endNow = System.currentTimeMillis()
+            messageDao.updateSendStatus(
+                id = localId,
+                status = SendStatus.FAILED,
+                externalMessageId = null,
+                sendError = e.message ?: e.javaClass.simpleName,
+                sentAt = endNow,
+            )
+        }
     }
 
     // ============================================================
@@ -238,11 +344,12 @@ class MailRepository internal constructor(
         val perTaskBuckets = linkedMapOf<String, MutableTaskSummary>()
         var inserted = 0
         for (mail in incomings) {
-            if (messageDao.exists(mail.messageId)) continue
+            if (messageDao.existsByExternalMessageId(mail.messageId)) continue
             val targetTaskId = router.route(mail, agent.id)
             messageDao.upsert(
                 TaskMessage(
-                    messageId = mail.messageId,
+                    id = UUID.randomUUID().toString(),
+                    externalMessageId = mail.messageId,
                     taskId = targetTaskId,
                     fromAgent = true,
                     subject = mail.subject,
@@ -258,6 +365,8 @@ class MailRepository internal constructor(
                     inReplyTo = mail.inReplyTo,
                     sentAt = mail.sentAt,
                     isRead = mail.seen,
+                    sendStatus = SendStatus.SENT,
+                    sendError = null,
                 )
             )
             if (targetTaskId != SystemIds.UNCLASSIFIED_TASK_ID) {
@@ -351,13 +460,13 @@ class MailRepository internal constructor(
                 .toList()
         }
 
-    suspend fun markRead(messageId: String) = messageDao.markRead(messageId)
+    suspend fun markRead(localMessageId: String) = messageDao.markRead(localMessageId)
 
     suspend fun markTaskRead(taskId: String) = messageDao.markAllReadInTask(taskId)
 
-    /** 把未归类的某条消息手动指派到 Task。 */
-    suspend fun assignMessageToTask(messageId: String, targetTaskId: String) {
-        val msg = messageDao.getByMessageId(messageId) ?: return
+    /** 把未归类的某条消息手动指派到 Task。参数为消息的本地 UUID 主键。 */
+    suspend fun assignMessageToTask(localMessageId: String, targetTaskId: String) {
+        val msg = messageDao.getById(localMessageId) ?: return
         require(targetTaskId != SystemIds.UNCLASSIFIED_TASK_ID) {
             "targetTaskId cannot be unclassified placeholder"
         }

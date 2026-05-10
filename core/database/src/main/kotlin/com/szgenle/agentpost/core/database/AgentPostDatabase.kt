@@ -23,7 +23,7 @@ import com.szgenle.agentpost.core.model.TaskMessage
         Task::class,
         TaskMessage::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
