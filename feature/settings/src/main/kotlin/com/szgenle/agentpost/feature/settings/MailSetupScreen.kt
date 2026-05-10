@@ -1,6 +1,5 @@
 package com.szgenle.agentpost.feature.settings
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +9,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,7 +34,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.szgenle.agentpost.core.mail.MailProviderPreset
 import com.szgenle.agentpost.core.mail.MailProviderPresets
 import com.szgenle.agentpost.core.ui.R as CoreUiR
 
@@ -100,45 +97,32 @@ private fun MailSetupForm(
     var form by remember(initialForm) { mutableStateOf(initialForm) }
     var password by remember(hasExistingPassword) { mutableStateOf("") }
 
-    // 已回填表单时按 host 反查预设；空表单默认 null
-    var selectedPresetId by remember(initialForm) {
-        mutableStateOf(
-            MailProviderPresets.ALL.firstOrNull {
-                it.imapHost.isNotEmpty() && it.imapHost == initialForm.imapHost
-            }?.id
-        )
+    // 服务商完全由邮箱派生：匹配到预设就显示其名称，否则显示"自定义"
+    val detectedPreset = remember(form.email) {
+        MailProviderPresets.matchByEmail(form.email)
     }
-    // 非自定义预设下默认收起高级（Host/Port/SSL）
-    var advancedExpanded by remember(selectedPresetId) {
-        mutableStateOf(selectedPresetId == null || selectedPresetId == MailProviderPresets.CUSTOM.id)
+    val providerLabel = detectedPreset?.displayName
+        ?: stringResource(R.string.settings_mail_provider_custom)
+    // 非自定义时默认收起高级（Host/Port/SSL）
+    var advancedExpanded by remember(detectedPreset?.id) {
+        mutableStateOf(detectedPreset == null)
     }
 
-    fun applyPreset(preset: MailProviderPreset) {
-        selectedPresetId = preset.id
-        if (preset.id == MailProviderPresets.CUSTOM.id) {
-            advancedExpanded = true
-            return
-        }
-        form = form.copy(
-            imapHost = preset.imapHost,
-            imapPort = preset.imapPort,
-            imapUseSsl = preset.imapUseSsl,
-            smtpHost = preset.smtpHost,
-            smtpPort = preset.smtpPort,
-            smtpUseStartTls = preset.smtpUseStartTls,
+    // 服务商只读展示：一行 label + value
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            stringResource(R.string.settings_provider),
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.weight(1f),
         )
-        advancedExpanded = false
+        Text(
+            providerLabel,
+            style = MaterialTheme.typography.bodyLarge,
+        )
     }
-
-    Text(
-        stringResource(R.string.settings_provider),
-        style = MaterialTheme.typography.labelLarge,
-    )
-    ProviderChipRow(
-        presets = MailProviderPresets.ALL,
-        selectedId = selectedPresetId,
-        onSelect = ::applyPreset,
-    )
 
     OutlinedTextField(
         value = form.displayName,
@@ -150,10 +134,20 @@ private fun MailSetupForm(
     OutlinedTextField(
         value = form.email,
         onValueChange = { newEmail ->
-            form = form.copy(email = newEmail)
-            // 用户尚未手动选过预设时，按域名自动匹配
-            if (selectedPresetId == null) {
-                MailProviderPresets.matchByEmail(newEmail)?.let(::applyPreset)
+            // 邮箱变动时，匹配到预设则自动回填 host/port/SSL；匹配不到只改 email
+            val matched = MailProviderPresets.matchByEmail(newEmail)
+            form = if (matched != null) {
+                form.copy(
+                    email = newEmail,
+                    imapHost = matched.imapHost,
+                    imapPort = matched.imapPort,
+                    imapUseSsl = matched.imapUseSsl,
+                    smtpHost = matched.smtpHost,
+                    smtpPort = matched.smtpPort,
+                    smtpUseStartTls = matched.smtpUseStartTls,
+                )
+            } else {
+                form.copy(email = newEmail)
             }
         },
         label = { Text(stringResource(R.string.settings_email_address)) },
@@ -224,28 +218,6 @@ private fun MailSetupForm(
             enabled = !busy,
             modifier = Modifier.weight(1f),
         ) { Text(stringResource(R.string.settings_test_connection)) }
-    }
-}
-
-@Composable
-private fun ProviderChipRow(
-    presets: List<MailProviderPreset>,
-    selectedId: String?,
-    onSelect: (MailProviderPreset) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        presets.forEach { preset ->
-            FilterChip(
-                selected = selectedId == preset.id,
-                onClick = { onSelect(preset) },
-                label = { Text(preset.displayName) },
-            )
-        }
     }
 }
 
