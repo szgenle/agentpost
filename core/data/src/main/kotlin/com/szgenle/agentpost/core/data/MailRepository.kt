@@ -269,6 +269,8 @@ class MailRepository internal constructor(
     fun observeMessages(taskId: String): Flow<List<TaskMessage>> =
         messageDao.observeByTaskId(taskId)
 
+    suspend fun getTask(taskId: String): Task? = taskDao.getById(taskId)
+
     fun observeUnclassifiedMessages(): Flow<List<TaskMessage>> =
         messageDao.observeByTaskId(SystemIds.UNCLASSIFIED_TASK_ID)
 

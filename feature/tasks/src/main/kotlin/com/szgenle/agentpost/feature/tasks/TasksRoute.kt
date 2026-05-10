@@ -1,5 +1,6 @@
 package com.szgenle.agentpost.feature.tasks
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ class TasksViewModel(repo: MailRepository) : ViewModel() {
 fun TasksRoute(
     onOpenSettings: () -> Unit,
     onOpenNewTask: () -> Unit,
+    onOpenTask: (String) -> Unit,
     viewModel: TasksViewModel = viewModel(factory = TasksViewModel.Factory),
 ) {
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
@@ -101,6 +103,7 @@ fun TasksRoute(
                     ListItem(
                         headlineContent = { Text(task.title.ifEmpty { "(无标题)" }) },
                         supportingContent = { Text("lastActivity=${task.lastActivityAt}") },
+                        modifier = Modifier.clickable { onOpenTask(task.id) },
                     )
                 }
             }
