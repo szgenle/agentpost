@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base theme. MVP 先用系统默认 Material3 动态颜色基座，后续接 core:ui 里的自定义主题。 -->
+    <style name="Theme.AgentPost" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

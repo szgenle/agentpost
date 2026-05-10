@@ -3,3 +3,35 @@
 
 # Research (local only, not tracked)
 research/
+
+# Gradle
+.gradle/
+build/
+out/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local SDK / IDE config
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Kotlin
+.kotlin/
+
+# Android
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Logs
+*.log
+
+# Keystore / secrets (双保险，实际密钥不应提交)
+*.jks
+*.keystore
+keystore.properties
