@@ -158,9 +158,8 @@ private fun MailSetupForm(
         value = password,
         onValueChange = { password = it },
         label = { Text(stringResource(R.string.settings_password)) },
-        placeholder = if (hasExistingPassword) {
-            { Text(stringResource(R.string.settings_password_placeholder)) }
-        } else null,
+        // 密码框不用 placeholder——留空即真空，避免用 "••••••••" 占位符
+        // 误导用户以为已输入。"留空=不改"的语义由 ViewModel 保证。
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
