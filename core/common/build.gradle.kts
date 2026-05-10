@@ -11,4 +11,6 @@ dependencies {
 
     // EncryptedSharedPreferences：存 SMTP/IMAP 明文密码
     implementation(libs.androidx.security.crypto)
+
+    testImplementation(libs.junit)
 }

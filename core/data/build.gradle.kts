@@ -20,4 +20,7 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+
+    // TaskRouter 单测：fake DAO + runBlocking，不依赖 Room
+    testImplementation(libs.junit)
 }
