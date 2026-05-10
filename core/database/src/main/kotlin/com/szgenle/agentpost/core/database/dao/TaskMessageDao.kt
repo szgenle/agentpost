@@ -56,4 +56,17 @@ interface TaskMessageDao {
 
     @Query("UPDATE task_messages SET isRead = 1 WHERE taskId = :taskId")
     suspend fun markAllReadInTask(taskId: String)
+
+    /**
+     * 取指定 Task 下按时间升序的所有 Message-ID。
+     * 用于回复时拼 References 链。没有消息时返回空列表。
+     */
+    @Query(
+        """
+        SELECT messageId FROM task_messages
+        WHERE taskId = :taskId
+        ORDER BY sentAt ASC
+        """
+    )
+    suspend fun messageIdsByTaskOrderBySentAtAscOrNull(taskId: String): List<String>
 }

@@ -20,6 +20,18 @@ android {
             )
         }
     }
+
+    // Jakarta Mail / Angus 系各自携一份 META-INF/NOTICE.md，合并到 APK 时冒泡吗，这里全量排除
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/NOTICE.md",
+                "META-INF/LICENSE.md",
+                "META-INF/DEPENDENCIES",
+                "META-INF/INDEX.LIST",
+            )
+        }
+    }
 }
 
 dependencies {

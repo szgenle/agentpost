@@ -8,4 +8,7 @@ android {
 
 dependencies {
     implementation(libs.kotlinx.coroutines.core)
+
+    // EncryptedSharedPreferences：存 SMTP/IMAP 明文密码
+    implementation(libs.androidx.security.crypto)
 }

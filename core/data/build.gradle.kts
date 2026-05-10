@@ -12,4 +12,10 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
     implementation(project(":core:mail"))
+
+    // ServiceLocator 中用 Room.databaseBuilder 创建 Database 实例
+    implementation(libs.androidx.room.runtime)
+
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
 }

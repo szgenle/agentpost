@@ -17,14 +17,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
-                AgentPostApp()
+                AgentPostRoot()
             }
         }
     }
 }
 
 @Composable
-fun AgentPostApp() {
+fun AgentPostRoot() {
     Scaffold(modifier = Modifier.fillMaxSize()) { padding ->
         Text(
             text = "AgentPost · M0 骨架就绪",
