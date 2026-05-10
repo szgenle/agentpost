@@ -1,9 +1,9 @@
 package com.szgenle.agentpost.sync
 
-import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,17 +42,17 @@ object ForegroundSyncScheduler : DefaultLifecycleObserver {
         // 切到前台：启动轮询
         if (job?.isActive == true) return
         job = scope.launch {
-            Log.i(TAG, "foreground sync loop start")
+            AppLog.i(TAG, "foreground sync loop start")
             while (isActive) {
                 runCatching {
                     AppServiceLocator.mailRepository.syncInbox()
                 }.onSuccess { result ->
                     result.fold(
-                        onSuccess = { r -> if (r.totalNew > 0) Log.i(TAG, "fg sync new=${r.totalNew}") },
-                        onFailure = { e -> Log.w(TAG, "fg sync failed: ${e.message}") },
+                        onSuccess = { r -> if (r.totalNew > 0) AppLog.i(TAG, "fg sync new=${r.totalNew}") },
+                        onFailure = { e -> AppLog.w(TAG, "fg sync failed: ${e.message}", e) },
                     )
                 }.onFailure { t ->
-                    Log.w(TAG, "fg sync unexpected", t)
+                    AppLog.w(TAG, "fg sync unexpected", t)
                 }
                 delay(INTERVAL_MS)
             }
@@ -61,7 +61,7 @@ object ForegroundSyncScheduler : DefaultLifecycleObserver {
 
     override fun onStop(owner: LifecycleOwner) {
         // 切到后台：停轮询，交给 WorkManager
-        Log.i(TAG, "foreground sync loop stop")
+        AppLog.i(TAG, "foreground sync loop stop")
         job?.cancel()
         job = null
     }

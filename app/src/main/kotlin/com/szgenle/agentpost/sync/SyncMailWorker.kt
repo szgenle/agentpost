@@ -1,7 +1,6 @@
 package com.szgenle.agentpost.sync
 
 import android.content.Context
-import android.util.Log
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -9,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.notification.NotificationController
 import java.util.concurrent.TimeUnit
@@ -33,7 +33,7 @@ class SyncMailWorker(
             val result = repo.syncInbox()
             result.fold(
                 onSuccess = { r ->
-                    Log.i(TAG, "syncInbox ok, new messages = ${r.totalNew}")
+                    AppLog.i(TAG, "syncInbox ok, new messages = ${r.totalNew}")
                     if (r.totalNew > 0) {
                         // 后台同步拉到新邮件 → 按 Task 分组推通知
                         NotificationController.notifyNewMessages(applicationContext, r)
@@ -41,12 +41,12 @@ class SyncMailWorker(
                     Result.success()
                 },
                 onFailure = { err ->
-                    Log.w(TAG, "syncInbox failed (swallowed, wait next period)", err)
+                    AppLog.w(TAG, "syncInbox failed (swallowed, wait next period)", err)
                     Result.success()
                 },
             )
         } catch (t: Throwable) {
-            Log.w(TAG, "SyncMailWorker unexpected error", t)
+            AppLog.w(TAG, "SyncMailWorker unexpected error", t)
             Result.success()
         }
     }

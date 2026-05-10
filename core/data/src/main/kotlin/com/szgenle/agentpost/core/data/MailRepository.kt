@@ -1,6 +1,7 @@
 package com.szgenle.agentpost.core.data
 
 import android.content.Context
+import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.common.mail.SubjectNormalizer
 import com.szgenle.agentpost.core.common.security.CredentialsVault
 import com.szgenle.agentpost.core.data.internal.TaskRouter
@@ -354,6 +355,10 @@ class MailRepository internal constructor(
             taskDao.touch(taskId, endNow)
         } catch (e: Exception) {
             val endNow = System.currentTimeMillis()
+            // Jakarta Mail 的异常（AuthenticationFailedException / MessagingException 等）
+            // 往往要看 cause 链才能定位到真正的 SMTP 错误，这里把完整堆栈写进 logcat/rolling file；
+            // DB 里只留 message 摘要给 UI 展示。
+            AppLog.w(TAG, "SMTP send failed taskId=$taskId localId=$localId", e)
             messageDao.updateSendStatus(
                 id = localId,
                 status = SendStatus.FAILED,
@@ -628,6 +633,10 @@ class MailRepository internal constructor(
 
     private fun List<OutgoingAttachment>.toAttachmentsMeta(): List<Attachment> =
         map { Attachment(it.fileName, it.mimeType, it.bytes.size.toLong(), null) }
+
+    private companion object {
+        const val TAG = "MailRepository"
+    }
 }
 
 /**
