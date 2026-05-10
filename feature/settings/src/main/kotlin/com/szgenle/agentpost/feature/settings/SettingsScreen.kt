@@ -1,5 +1,10 @@
 package com.szgenle.agentpost.feature.settings
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +31,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +41,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.szgenle.agentpost.core.mail.MailProviderPresets
@@ -60,6 +70,21 @@ fun SettingsRoute(
 
     var showAgentDialog by remember { mutableStateOf(false) }
     var showSelfDialog by remember { mutableStateOf(false) }
+
+    // 系统级权限状态：用户去系统设置授权后回来 ON_RESUME 重读一次
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var notificationsAllowed by remember { mutableStateOf(areNotificationsAllowed(context)) }
+    var batteryUnrestricted by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationsAllowed = areNotificationsAllowed(context)
+                batteryUnrestricted = isIgnoringBatteryOptimizations(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {
@@ -168,6 +193,50 @@ fun SettingsRoute(
                 },
                 modifier = Modifier.clickable(onClick = onOpenFetch),
             )
+            HorizontalDivider()
+
+            // 6. 允许通知：点击跳系统 App 通知设置页
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_notifications)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(
+                            if (notificationsAllowed) R.string.settings_permission_allowed
+                            else R.string.settings_permission_denied,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable { openNotificationSettings(context) },
+            )
+            HorizontalDivider()
+
+            // 7. 允许后台运行：跳系统「电池优化」列表让用户将本 App 设为不受限
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_background)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(
+                            if (batteryUnrestricted) R.string.settings_background_allowed
+                            else R.string.settings_background_restricted,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable { openBatteryOptimizationSettings(context) },
+            )
         }
     }
 
@@ -274,3 +343,42 @@ private fun IdentityEditDialog(
         },
     )
 }
+
+// ---- 系统设置权限跳转辅助（仅本文件使用）----
+
+/** 通知是否被允许：综合 POST_NOTIFICATIONS 权限与 App/渠道级开关。 */
+private fun areNotificationsAllowed(context: Context): Boolean =
+    NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+/** App 是否已被用户加入「电池优化白名单」（系统不限制后台）。 */
+private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+    val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
+    return pm.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+/** 跳系统的 App 通知设置页；ActionNotAvailable 时回退到 App 详情页。 */
+private fun openNotificationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }.onFailure {
+        context.startActivity(appDetailsIntent(context))
+    }
+}
+
+/**
+ * 跳系统「电池优化」列表页，用户手动将本 App 改为「不受限」。
+ * 故意不用 ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS，避免加 REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 权限碰触 Play 政策。
+ */
+private fun openBatteryOptimizationSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { context.startActivity(intent) }.onFailure {
+        context.startActivity(appDetailsIntent(context))
+    }
+}
+
+private fun appDetailsIntent(context: Context): Intent =
+    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .setData(Uri.fromParts("package", context.packageName, null))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

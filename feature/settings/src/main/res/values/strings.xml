@@ -49,6 +49,14 @@
     <string name="settings_row_self">我</string>
     <string name="settings_row_mail">邮箱设置</string>
     <string name="settings_row_fetch">收件收取</string>
+    <string name="settings_row_notifications">允许通知</string>
+    <string name="settings_row_background">允许后台运行</string>
+
+    <!-- 权限状态副文案 -->
+    <string name="settings_permission_allowed">已允许</string>
+    <string name="settings_permission_denied">未允许，点此前往设置</string>
+    <string name="settings_background_allowed">已允许</string>
+    <string name="settings_background_restricted">可能被系统限制，点此前往设置</string>
 
     <!-- 二级页标题 -->
     <string name="settings_mail_title">邮箱设置</string>

@@ -39,6 +39,14 @@
     <string name="settings_row_self">Me</string>
     <string name="settings_row_mail">Mailbox</string>
     <string name="settings_row_fetch">Fetch schedule</string>
+    <string name="settings_row_notifications">Notifications</string>
+    <string name="settings_row_background">Background execution</string>
+
+    <!-- Permission status subtitles -->
+    <string name="settings_permission_allowed">Allowed</string>
+    <string name="settings_permission_denied">Not allowed. Tap to open settings.</string>
+    <string name="settings_background_allowed">Allowed</string>
+    <string name="settings_background_restricted">May be restricted by the system. Tap to open settings.</string>
 
     <!-- Detail page titles -->
     <string name="settings_mail_title">Mailbox settings</string>
