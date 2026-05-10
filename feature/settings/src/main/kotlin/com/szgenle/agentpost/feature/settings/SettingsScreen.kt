@@ -1,5 +1,6 @@
 package com.szgenle.agentpost.feature.settings
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -9,6 +10,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -32,6 +35,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.szgenle.agentpost.core.mail.MailProviderPreset
+import com.szgenle.agentpost.core.mail.MailProviderPresets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,8 +97,32 @@ private fun SelfSection(
     onTest: () -> Unit,
 ) {
     var form by remember(initial) { mutableStateOf(initial) }
+    // 已回填表单时，按 host 反查预设；空表单默认未选中
+    var selectedPresetId by remember(initial) {
+        mutableStateOf(MailProviderPresets.ALL.firstOrNull { it.imapHost == initial.imapHost && it.imapHost.isNotEmpty() }?.id)
+    }
+
+    fun applyPreset(preset: MailProviderPreset) {
+        selectedPresetId = preset.id
+        if (preset.id == MailProviderPresets.CUSTOM.id) return
+        form = form.copy(
+            imapHost = preset.imapHost,
+            imapPort = preset.imapPort,
+            imapUseSsl = preset.imapUseSsl,
+            smtpHost = preset.smtpHost,
+            smtpPort = preset.smtpPort,
+            smtpUseStartTls = preset.smtpUseStartTls,
+        )
+    }
 
     Text("SELF（我的邮箱）", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+
+    Text("邮箱服务商", style = androidx.compose.material3.MaterialTheme.typography.labelLarge)
+    ProviderChipRow(
+        presets = MailProviderPresets.ALL,
+        selectedId = selectedPresetId,
+        onSelect = ::applyPreset,
+    )
 
     OutlinedTextField(
         value = form.displayName,
@@ -104,7 +133,13 @@ private fun SelfSection(
     )
     OutlinedTextField(
         value = form.email,
-        onValueChange = { form = form.copy(email = it) },
+        onValueChange = { newEmail ->
+            form = form.copy(email = newEmail)
+            // 用户尚未手动选过预设时，按域名自动匹配
+            if (selectedPresetId == null) {
+                MailProviderPresets.matchByEmail(newEmail)?.let(::applyPreset)
+            }
+        },
         label = { Text("邮箱地址") },
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
@@ -191,6 +226,29 @@ private fun AgentSection(
         enabled = !busy,
         modifier = Modifier.fillMaxWidth(),
     ) { Text("保存 AGENT") }
+}
+
+@Composable
+private fun ProviderChipRow(
+    presets: List<MailProviderPreset>,
+    selectedId: String?,
+    onSelect: (MailProviderPreset) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        presets.forEach { preset ->
+            FilterChip(
+                selected = selectedId == preset.id,
+                onClick = { onSelect(preset) },
+                label = { Text(preset.displayName) },
+                colors = FilterChipDefaults.filterChipColors(),
+            )
+        }
+    }
 }
 
 @Composable
