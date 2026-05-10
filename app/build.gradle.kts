@@ -54,6 +54,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 
+    // WorkManager：后台周期性 syncInbox
+    implementation(libs.androidx.work.runtime.ktx)
+
     // compose
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
