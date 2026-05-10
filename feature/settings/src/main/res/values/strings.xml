@@ -51,6 +51,7 @@
     <string name="settings_row_fetch">收件收取</string>
     <string name="settings_row_notifications">允许通知</string>
     <string name="settings_row_background">允许后台运行</string>
+    <string name="settings_row_crash_report">崩溃上报</string>
 
     <!-- 权限状态副文案 -->
     <string name="settings_permission_allowed">已允许</string>
@@ -81,4 +82,10 @@
     <string name="settings_fetch_trailing_fmt">前台 %1$ds / 后台 %2$dmin</string>
     <string name="settings_fetch_saved">已保存</string>
     <string name="settings_identity_require_mail_first">请先在“邮箱设置”完成初始配置</string>
+
+    <!-- 崩溃上报偏好（行右侧短文案 + 弹框选项） -->
+    <string name="settings_crash_dialog_title">崩溃时如何处理？</string>
+    <string name="settings_crash_ask">每次询问</string>
+    <string name="settings_crash_auto">自动发到我的邮箱</string>
+    <string name="settings_crash_never">从不上报</string>
 </resources>

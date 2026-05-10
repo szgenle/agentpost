@@ -22,6 +22,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -48,6 +49,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.szgenle.agentpost.core.mail.MailProviderPresets
+import com.szgenle.agentpost.core.datastore.CrashReportPref
 import com.szgenle.agentpost.core.ui.R as CoreUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,6 +72,7 @@ fun SettingsRoute(
 
     var showAgentDialog by remember { mutableStateOf(false) }
     var showSelfDialog by remember { mutableStateOf(false) }
+    var showCrashPrefDialog by remember { mutableStateOf(false) }
 
     // 系统级权限状态：用户去系统设置授权后回来 ON_RESUME 重读一次
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -233,6 +236,25 @@ fun SettingsRoute(
                 },
                 modifier = Modifier.clickable { openBatteryOptimizationSettings(context) },
             )
+            HorizontalDivider()
+
+            // 8. 崩溃上报：弹框选态，右侧显示当前选中的短文案
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_crash_report)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(crashPrefShortRes(state.crashReportPref)),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable { showCrashPrefDialog = true },
+            )
         }
     }
 
@@ -260,6 +282,16 @@ fun SettingsRoute(
                 showSelfDialog = false
             },
             onDismiss = { showSelfDialog = false },
+        )
+    }
+    if (showCrashPrefDialog) {
+        CrashReportPrefDialog(
+            current = state.crashReportPref,
+            onSelect = { pref ->
+                viewModel.setCrashReportPref(pref)
+                showCrashPrefDialog = false
+            },
+            onDismiss = { showCrashPrefDialog = false },
         )
     }
 }
@@ -378,3 +410,68 @@ private fun appDetailsIntent(context: Context): Intent =
     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
         .setData(Uri.fromParts("package", context.packageName, null))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+
+// ---- 崩溃上报偏好（仅本文件使用）----
+
+/** 行右侧显示的短文案。 */
+private fun crashPrefShortRes(pref: CrashReportPref): Int = when (pref) {
+    CrashReportPref.ASK_EACH_TIME -> R.string.settings_crash_ask
+    CrashReportPref.AUTO -> R.string.settings_crash_auto
+    CrashReportPref.NEVER -> R.string.settings_crash_never
+}
+
+/** 三选一弹框：选中即切换，并关闭弹框。 */
+@Composable
+private fun CrashReportPrefDialog(
+    current: CrashReportPref,
+    onSelect: (CrashReportPref) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_crash_dialog_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                CrashPrefOption(
+                    label = stringResource(R.string.settings_crash_ask),
+                    selected = current == CrashReportPref.ASK_EACH_TIME,
+                    onClick = { onSelect(CrashReportPref.ASK_EACH_TIME) },
+                )
+                CrashPrefOption(
+                    label = stringResource(R.string.settings_crash_auto),
+                    selected = current == CrashReportPref.AUTO,
+                    onClick = { onSelect(CrashReportPref.AUTO) },
+                )
+                CrashPrefOption(
+                    label = stringResource(R.string.settings_crash_never),
+                    selected = current == CrashReportPref.NEVER,
+                    onClick = { onSelect(CrashReportPref.NEVER) },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(CoreUiR.string.common_cancel))
+            }
+        },
+    )
+}
+
+@Composable
+private fun CrashPrefOption(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label)
+    }
+}

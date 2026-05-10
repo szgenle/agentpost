@@ -8,4 +8,12 @@
     <string name="notification_channel_description">Alerts for AI replies and new mail</string>
     <string name="notification_unclassified_title">Unclassified mail</string>
     <string name="notification_multi_count"> (%d new)</string>
+
+    <!-- Crash upload prompt shown at launch -->
+    <string name="crash_prompt_title">Send crash report?</string>
+    <!-- %1$d = pending report count -->
+    <string name="crash_prompt_message">Found %1$d crash record(s). You can email them to yourself via your SELF mailbox. The mail will include the stack trace, device info and recent logs.</string>
+    <string name="crash_prompt_send">Send</string>
+    <string name="crash_prompt_skip">Skip</string>
+    <string name="crash_prompt_never">Never</string>
 </resources>

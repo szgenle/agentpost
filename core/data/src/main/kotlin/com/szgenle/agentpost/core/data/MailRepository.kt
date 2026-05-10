@@ -586,6 +586,58 @@ class MailRepository internal constructor(
     }
 
     // ============================================================
+    // 崩溃上报（给自己发邮件，不落 Task/TaskMessage）
+    // ============================================================
+
+    /**
+     * 通过 SELF 的 SMTP 通道给自己发一封崩溃报告邮件。
+     *
+     * 特性：
+     *  - 不入库（不生成 Task、不生成 TaskMessage），避免污染任务池
+     *  - SELF 未配置、凭据缺失、SMTP 失败…全部恶化为返回 false不抛异常，
+     *    Crash 路径不应因上报失败再出问题
+     *  - 失败原因写入 AppLog（下次启动仍可从日志追查）
+     */
+    suspend fun sendCrashReport(
+        subject: String,
+        body: String,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val self = accountDao.getFirstByType(AccountType.SELF)
+        if (self == null) {
+            AppLog.w(TAG, "crash-report: SELF account missing, skip")
+            return@withContext false
+        }
+        if (!vault.contains(self.credentialKey)) {
+            AppLog.w(TAG, "crash-report: SELF credential missing, skip")
+            return@withContext false
+        }
+        if (self.smtpHost.isBlank()) {
+            AppLog.w(TAG, "crash-report: SELF smtp not configured, skip")
+            return@withContext false
+        }
+        val creds = try {
+            self.toCredentials()
+        } catch (e: Exception) {
+            AppLog.w(TAG, "crash-report: build credentials failed", e)
+            return@withContext false
+        }
+        try {
+            sender.send(
+                creds,
+                OutgoingMail(
+                    toAddress = self.email,
+                    subject = subject,
+                    body = body,
+                ),
+            )
+            true
+        } catch (e: Exception) {
+            AppLog.w(TAG, "crash-report: SMTP send failed", e)
+            false
+        }
+    }
+
+    // ============================================================
     // 内部辅助
     // ============================================================
 

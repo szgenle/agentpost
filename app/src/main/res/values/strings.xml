@@ -7,4 +7,12 @@
     <string name="notification_channel_description">AI 回复 / 新邮件到达时提醒</string>
     <string name="notification_unclassified_title">未归类邮件</string>
     <string name="notification_multi_count"> (共 %d 条)</string>
+
+    <!-- 启动时崩溃上报弹框 -->
+    <string name="crash_prompt_title">发送崩溃报告？</string>
+    <!-- %1$d = 待上报文件数 -->
+    <string name="crash_prompt_message">检测到 %1$d 份崩溃记录。可通过你自己的邮箱（SELF）给自己发一封排查邮件，邮件包含堆栈、设备信息和近期日志。</string>
+    <string name="crash_prompt_send">发送</string>
+    <string name="crash_prompt_skip">跳过</string>
+    <string name="crash_prompt_never">从不上报</string>
 </resources>

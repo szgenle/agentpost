@@ -122,12 +122,28 @@ class AppPreferences(context: Context) {
         }
     }
 
+    // --- 崩溃上报偏好 ---
+    // 三态：每次询问 / 自动发送 / 从不上报。默认每次询问，尊重用户知情权。
+    fun observeCrashReportPref(): Flow<CrashReportPref> =
+        store.data.map { prefs ->
+            val raw = prefs[CRASH_REPORT_PREF_KEY]
+            raw?.let { runCatching { CrashReportPref.valueOf(it) }.getOrNull() }
+                ?: CrashReportPref.ASK_EACH_TIME
+        }
+
+    suspend fun getCrashReportPref(): CrashReportPref = observeCrashReportPref().first()
+
+    suspend fun setCrashReportPref(pref: CrashReportPref) {
+        store.edit { it[CRASH_REPORT_PREF_KEY] = pref.name }
+    }
+
     private companion object {
         val LANGUAGE_TAG_KEY = stringPreferencesKey("ui_language_tag")
         val FETCH_FG_SEC_KEY = intPreferencesKey("fetch_foreground_seconds")
         val FETCH_BG_MIN_KEY = intPreferencesKey("fetch_background_minutes")
         val NEW_TASK_DRAFT_SUBJECT_KEY = stringPreferencesKey("new_task_draft_subject")
         val NEW_TASK_DRAFT_BODY_KEY = stringPreferencesKey("new_task_draft_body")
+        val CRASH_REPORT_PREF_KEY = stringPreferencesKey("crash_report_pref")
 
         const val DEFAULT_FG_SEC = 60
         const val DEFAULT_BG_MIN = 15
@@ -147,3 +163,12 @@ data class NewTaskDraft(
 ) {
     val isEmpty: Boolean get() = subject.isEmpty() && body.isEmpty()
 }
+
+/**
+ * 崩溃上报偏好。
+ *
+ * - [ASK_EACH_TIME]：默认。检测到未处理的崩溃文件时，弹框询问用户
+ * - [AUTO]：静默通过 SELF 邮箱给自己发送，发完删除
+ * - [NEVER]：启动时直接删除崩溃文件，不上报
+ */
+enum class CrashReportPref { ASK_EACH_TIME, AUTO, NEVER }

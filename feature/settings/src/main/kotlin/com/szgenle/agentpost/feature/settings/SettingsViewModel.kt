@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
 import com.szgenle.agentpost.core.datastore.AppPreferences
+import com.szgenle.agentpost.core.datastore.CrashReportPref
 import com.szgenle.agentpost.core.datastore.FetchIntervals
 import com.szgenle.agentpost.core.model.Account
 import com.szgenle.agentpost.core.ui.UiText
@@ -36,6 +37,8 @@ data class SettingsUiState(
     /** 当前应用语言 tag："zh-CN" / "en"。null 表示尚未加载完 DataStore。 */
     val languageTag: String? = null,
     val fetchIntervals: FetchIntervals = FetchIntervals(60, 15),
+    /** 崩溃上报偏好。默认询问，与 [AppPreferences] 默认一致。 */
+    val crashReportPref: CrashReportPref = CrashReportPref.ASK_EACH_TIME,
 )
 
 class SettingsViewModel(
@@ -52,14 +55,19 @@ class SettingsViewModel(
         prefs.observeLanguageTag(),
         prefs.observeFetchIntervals(),
     ) { self, agent, t, langTag, intervals ->
-        SettingsUiState(
-            self = self,
-            agent = agent,
-            message = t.message,
-            busy = t.busy,
-            languageTag = langTag,
-            fetchIntervals = intervals,
-        )
+        Quint(self, agent, t, langTag, intervals)
+    }.let { base ->
+        combine(base, prefs.observeCrashReportPref()) { b, crashPref ->
+            SettingsUiState(
+                self = b.self,
+                agent = b.agent,
+                message = b.t.message,
+                busy = b.t.busy,
+                languageTag = b.langTag,
+                fetchIntervals = b.intervals,
+                crashReportPref = crashPref,
+            )
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -134,9 +142,23 @@ class SettingsViewModel(
         )
     }
 
+    /** 切换崩溃上报偏好（马上生效，下次启动 CrashReportPrompt 读新值）。 */
+    fun setCrashReportPref(pref: CrashReportPref) {
+        viewModelScope.launch { prefs.setCrashReportPref(pref) }
+    }
+
     private data class TransientState(
         val message: UiText? = null,
         val busy: Boolean = false,
+    )
+
+    /** 5 元组中间态：规避 combine 只有 5 参重载的限制。 */
+    private data class Quint(
+        val self: Account?,
+        val agent: Account?,
+        val t: TransientState,
+        val langTag: String?,
+        val intervals: FetchIntervals,
     )
 
     companion object {

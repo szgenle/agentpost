@@ -19,6 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.szgenle.agentpost.crash.CrashReportPrompt
 import com.szgenle.agentpost.feature.newtask.NewTaskRoute
 import com.szgenle.agentpost.feature.settings.FetchIntervalRoute
 import com.szgenle.agentpost.feature.settings.MailSetupRoute
@@ -48,6 +49,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 AgentPostNavHost(pendingDeepLinkTaskId)
+                // 启动期崩溃上报：挂在导航宿主之后，弹框会叠在任何路由之上。
+                CrashReportPrompt()
             }
         }
     }

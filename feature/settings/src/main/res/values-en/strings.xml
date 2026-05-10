@@ -41,6 +41,7 @@
     <string name="settings_row_fetch">Fetch schedule</string>
     <string name="settings_row_notifications">Notifications</string>
     <string name="settings_row_background">Background execution</string>
+    <string name="settings_row_crash_report">Crash reports</string>
 
     <!-- Permission status subtitles -->
     <string name="settings_permission_allowed">Allowed</string>
@@ -70,4 +71,10 @@
     <string name="settings_fetch_trailing_fmt">FG %1$ds / BG %2$dmin</string>
     <string name="settings_fetch_saved">Saved</string>
     <string name="settings_identity_require_mail_first">Please complete Mailbox settings first.</string>
+
+    <!-- Crash report preferences (row trailing label + dialog options) -->
+    <string name="settings_crash_dialog_title">When the app crashes</string>
+    <string name="settings_crash_ask">Ask each time</string>
+    <string name="settings_crash_auto">Send to my mailbox automatically</string>
+    <string name="settings_crash_never">Never send</string>
 </resources>

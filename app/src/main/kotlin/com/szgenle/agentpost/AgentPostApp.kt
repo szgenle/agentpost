@@ -2,6 +2,7 @@ package com.szgenle.agentpost
 
 import android.app.Application
 import android.content.pm.ApplicationInfo
+import com.szgenle.agentpost.core.common.crash.CrashHandler
 import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.common.logging.CompositeLogger
 import com.szgenle.agentpost.core.common.logging.LogLevel
@@ -16,17 +17,20 @@ import java.io.File
 /**
  * Application 入口。职责：
  *  1. 安装日志基础设施（Debug → logcat；Release → rolling file，排查 Jakarta Mail 异常用）
- *  2. 首次启动按系统语言选定应用语言（简体中文→zh-CN，其他→en）并 apply
- *  3. 启动时完成依赖装配（ServiceLocator.init）
- *  4. 创建通知通道（系统“应用设置→通知”即可看到并调整）
- *  5. 注册周期性邮件同步 Worker（后台 15 分钟兑底）
- *  6. 安装前台快轮询（前台 30 秒一次）
+ *  2. 注册全局崩溃捕捉器（崩溃时落盘到 filesDir/crashes/，下次启动询问用户是否邮件回传）
+ *  3. 首次启动按系统语言选定应用语言（简体中文→zh-CN，其他→en）并 apply
+ *  4. 启动时完成依赖装配（ServiceLocator.init）
+ *  5. 创建通知通道（系统“应用设置→通知”即可看到并调整）
+ *  6. 注册周期性邮件同步 Worker（后台 15 分钟免底）
+ *  7. 安装前台快轮询（前台 30 秒一次）
  */
 class AgentPostApp : Application() {
     override fun onCreate() {
         super.onCreate()
         // 日志必须最先装上，后续初始化流程（ServiceLocator / Worker）出问题时才能留痕。
         installLogger()
+        // 崩溃捕捉器紧随其后：之后的任何初始化错误都会写一份崩溃报告到 filesDir/crashes/。
+        CrashHandler.install(this)
         // 语言初始化必须在第一个 Activity 被创建前完成。
         LocaleController.initialize(this)
         AppServiceLocator.init(this)
