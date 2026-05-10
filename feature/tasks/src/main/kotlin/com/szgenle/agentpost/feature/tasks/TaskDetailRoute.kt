@@ -1,6 +1,11 @@
 package com.szgenle.agentpost.feature.tasks
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.text.format.Formatter
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,16 +42,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.szgenle.agentpost.core.model.Attachment
 import com.szgenle.agentpost.core.model.SendStatus
 import com.szgenle.agentpost.core.model.TaskMessage
 import com.szgenle.agentpost.core.ui.time.RelativeTime
+import java.io.File
 import com.szgenle.agentpost.core.ui.R as CoreUiR
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,11 +69,25 @@ fun TaskDetailRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     LaunchedEffect(state.error) {
         val e = state.error ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(e.asString(context))
         viewModel.consumeError()
+    }
+
+    // 下载完成后由 ViewModel 丢出 pendingOpen，由此处就地 拉起系统 ACTION_VIEW 打开附件。
+    // 用后马上 consumePendingOpen 清除，避免 配置变更 后重新触发。
+    val noAppMsg = stringResource(R.string.attachment_no_app_to_open)
+    LaunchedEffect(state.pendingOpen) {
+        val p = state.pendingOpen ?: return@LaunchedEffect
+        val ok = openAttachment(context, p.filePath, p.mimeType)
+        if (!ok) {
+            snackbarHostState.showSnackbar(noAppMsg)
+        }
+        viewModel.consumePendingOpen()
     }
 
     val listState = rememberLazyListState()
@@ -92,7 +118,16 @@ fun TaskDetailRoute(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                // 仅让气泡容器 + 输入框响应软键盘，TopAppBar 由 Scaffold 固定在顶
+                .imePadding()
+                // 点击空白处主动收起键盘（OutlinedTextField 等子组件会优先消费触摸事件）
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = {
+                        focusManager.clearFocus()
+                        keyboardController?.hide()
+                    })
+                },
         ) {
             PullToRefreshBox(
                 isRefreshing = state.isRefreshing,
@@ -121,7 +156,11 @@ fun TaskDetailRoute(
                         items(state.messages, key = { it.id }) { msg ->
                             MessageBubble(
                                 msg = msg,
+                                downloadingKeys = state.downloadingKeys,
                                 onRetry = { viewModel.retrySend(msg.id) },
+                                onAttachmentClick = { index, att ->
+                                    viewModel.onAttachmentClick(msg.id, index, att)
+                                },
                             )
                         }
                     }
@@ -143,7 +182,9 @@ fun TaskDetailRoute(
 @Composable
 private fun MessageBubble(
     msg: TaskMessage,
+    downloadingKeys: Set<String>,
     onRetry: () -> Unit,
+    onAttachmentClick: (index: Int, attachment: Attachment) -> Unit,
 ) {
     val isMine = !msg.fromAgent
     val failed = msg.sendStatus == SendStatus.FAILED
@@ -188,14 +229,18 @@ private fun MessageBubble(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 if (msg.attachments.isNotEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = stringResource(
-                            R.string.task_detail_attachments_count,
-                            msg.attachments.size,
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
+                    Spacer(Modifier.height(6.dp))
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        msg.attachments.forEachIndexed { index, att ->
+                            AttachmentRow(
+                                attachment = att,
+                                downloading = "${msg.id}:$index" in downloadingKeys,
+                                onClick = { onAttachmentClick(index, att) },
+                            )
+                        }
+                    }
                 }
                 Spacer(Modifier.height(4.dp))
                 // 状态行：时间 + （可选）状态标签 / 重试按钮
@@ -294,5 +339,90 @@ private fun ReplyBar(
                 },
             )
         }
+    }
+}
+
+/**
+ * 气泡内的单行附件行：`文件名 · 大小` + 右侧动作按钮。
+ *
+ * 动作按钮三态：
+ * - 已落盘 (`localPath` 不空且文件存在) → 打开
+ * - 正在下载 (`downloading = true`) → 下载中…（禁用，防重复点击）
+ * - 其他 → 下载
+ *
+ * 整个行点击事件托管到 [onClick]，ViewModel 再根据附件当前状态分发为
+ * “直接打开” 或 “先下载再打开”。
+ */
+@Composable
+private fun AttachmentRow(
+    attachment: Attachment,
+    downloading: Boolean,
+    onClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val hasLocal = !attachment.localPath.isNullOrBlank() &&
+        runCatching { File(attachment.localPath!!).exists() }.getOrDefault(false)
+
+    val actionText = when {
+        downloading -> stringResource(R.string.attachment_action_downloading)
+        hasLocal -> stringResource(R.string.attachment_action_open)
+        else -> stringResource(R.string.attachment_action_download)
+    }
+    val sizeLabel = Formatter.formatShortFileSize(context, attachment.sizeBytes)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(
+                R.string.attachment_item_label,
+                attachment.fileName,
+                sizeLabel,
+            ),
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(
+            onClick = onClick,
+            enabled = !downloading,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 8.dp,
+                vertical = 0.dp,
+            ),
+        ) {
+            Text(actionText)
+        }
+    }
+}
+
+/**
+ * 通过 FileProvider 将附件文件暂授权给外部 app 并发 ACTION_VIEW。
+ * authority 统一是 `"${packageName}.fileprovider"`，给 manifest 里的 provider 配置保持同步。
+ *
+ * 返回值：`true` 表示已成功拉起某个 Activity；`false` 表示没有应用能处理该 MIME。
+ */
+private fun openAttachment(
+    context: Context,
+    filePath: String,
+    mimeType: String,
+): Boolean {
+    val file = File(filePath)
+    if (!file.exists()) return false
+    val authority = "${context.packageName}.fileprovider"
+    val uri = runCatching { FileProvider.getUriForFile(context, authority, file) }
+        .getOrElse { return false }
+    val safeMime = mimeType.ifBlank { "application/octet-stream" }
+    val intent = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(uri, safeMime)
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    return try {
+        context.startActivity(intent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        false
     }
 }

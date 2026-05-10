@@ -1,5 +1,6 @@
 package com.szgenle.agentpost.core.data
 
+import android.content.Context
 import com.szgenle.agentpost.core.common.mail.SubjectNormalizer
 import com.szgenle.agentpost.core.common.security.CredentialsVault
 import com.szgenle.agentpost.core.data.internal.TaskRouter
@@ -18,8 +19,11 @@ import com.szgenle.agentpost.core.model.Attachment
 import com.szgenle.agentpost.core.model.SendStatus
 import com.szgenle.agentpost.core.model.Task
 import com.szgenle.agentpost.core.model.TaskMessage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.UUID
 
 /**
@@ -28,6 +32,7 @@ import java.util.UUID
  * 唯一对上层（ViewModel / Worker）暴露的类，构造由 [com.szgenle.agentpost.core.data.AppServiceLocator] 完成。
  */
 class MailRepository internal constructor(
+    private val appContext: Context,
     private val accountDao: AccountDao,
     private val taskDao: TaskDao,
     private val messageDao: TaskMessageDao,
@@ -398,6 +403,8 @@ class MailRepository internal constructor(
                             mimeType = it.mimeType,
                             sizeBytes = it.sizeBytes,
                             localPath = null,
+                            imapUid = mail.imapUid,
+                            partIndex = it.partIndex,
                         )
                     },
                     inReplyTo = mail.inReplyTo,
@@ -459,6 +466,67 @@ class MailRepository internal constructor(
             .firstOrNull { it.isNotEmpty() }
             ?: return ""
         return if (firstLine.length <= limit) firstLine else firstLine.substring(0, limit) + "…"
+    }
+
+    // ============================================================
+    // 附件
+    // ============================================================
+
+    /**
+     * 下载指定消息里第 [attachmentIndex] 个附件到 app 私有 filesDir，
+     * 成功后把 [Attachment.localPath] 回写进该消息，返回落盘的绝对路径。
+     *
+     * 实现策略：只对来信附件（`imapUid`/`partIndex` 都非空）生效；本机发出的附件没有
+     * 远端定位信息，直接返回 failure。下载用 SELF 账户的凭据重新打开 IMAP，按 UID +
+     * walkParts 顺序序号定位到 part 再读字节流。
+     *
+     * 幂等性：若对应 localPath 已存在且文件可读，直接返回已有路径；否则总是覆盖写入。
+     *
+     * 落盘位置：`filesDir/attachments/{messageLocalId}/{fileName}`，后续通过 FileProvider
+     * 转成 content:// URI 再交给系统打开。
+     */
+    suspend fun downloadAttachment(
+        messageLocalId: String,
+        attachmentIndex: Int,
+    ): Result<String> = runCatching {
+        val msg = requireNotNull(messageDao.getById(messageLocalId)) {
+            "Message not found: $messageLocalId"
+        }
+        val att = msg.attachments.getOrNull(attachmentIndex)
+            ?: error("Attachment index out of bounds: $attachmentIndex")
+        // 已下载过，直接返回
+        att.localPath?.let { path ->
+            if (File(path).exists()) return@runCatching path
+        }
+        val uid = att.imapUid ?: error("附件缺少 imapUid，无法下载")
+        val pi = att.partIndex ?: error("附件缺少 partIndex，无法下载")
+        val self = requireSelf()
+        val creds = self.toCredentials()
+
+        val dir = File(appContext.filesDir, "attachments/$messageLocalId")
+        val target = withContext(Dispatchers.IO) {
+            if (!dir.exists()) dir.mkdirs()
+            val file = File(dir, sanitizeFileName(att.fileName))
+            fetcher.fetchAttachment(creds, uid, pi).use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            }
+            file
+        }
+        // 回写 localPath
+        val updatedAttachments = msg.attachments.mapIndexed { i, a ->
+            if (i == attachmentIndex) a.copy(localPath = target.absolutePath) else a
+        }
+        messageDao.upsert(msg.copy(attachments = updatedAttachments))
+        target.absolutePath
+    }
+
+    /**
+     * 简单的文件名清洗：把路径分隔符等不安全字符替换为下划线，避免 IMAP 上的文件名
+     * 带斜杠/反斜杠导致落盘时穿越目录。
+     */
+    private fun sanitizeFileName(raw: String): String {
+        val trimmed = raw.trim().ifEmpty { "attachment" }
+        return trimmed.replace(Regex("[\\\\/:*?\"<>|\\x00-\\x1f]"), "_")
     }
 
     // ============================================================

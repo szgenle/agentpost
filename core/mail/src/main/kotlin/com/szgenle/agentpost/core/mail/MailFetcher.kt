@@ -26,4 +26,19 @@ interface MailFetcher {
      */
     @Throws(Exception::class)
     suspend fun markSeen(credentials: MailCredentials, imapUids: List<Long>)
+
+    /**
+     * 按 UID + 附件在 walkParts 顺序中的序号重新拉附件字节流。
+     *
+     * 用于附件懒下载：syncInbox 时只存元数据，用户点击查看时再重开 IMAP 拉。
+     * 序号语义必须与 [IncomingAttachment.partIndex] 一致（同一 walkParts 算法）。
+     *
+     * @return 字节流，由调用方负责关闭
+     */
+    @Throws(Exception::class)
+    suspend fun fetchAttachment(
+        credentials: MailCredentials,
+        imapUid: Long,
+        partIndex: String,
+    ): java.io.InputStream
 }

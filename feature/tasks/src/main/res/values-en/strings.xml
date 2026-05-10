@@ -24,4 +24,14 @@
     <string name="task_detail_status_sending">Sending…</string>
     <string name="task_detail_status_failed">Failed</string>
     <string name="task_detail_action_retry">Retry</string>
+
+    <!-- Attachments -->
+    <!-- %1$s = file name, %2$s = formatted size -->
+    <string name="attachment_item_label">%1$s · %2$s</string>
+    <string name="attachment_action_download">Download</string>
+    <string name="attachment_action_downloading">Downloading…</string>
+    <string name="attachment_action_open">Open</string>
+    <string name="attachment_download_failed">Failed to download attachment</string>
+    <string name="attachment_not_downloadable">This attachment cannot be downloaded</string>
+    <string name="attachment_no_app_to_open">No app available to open this file</string>
 </resources>

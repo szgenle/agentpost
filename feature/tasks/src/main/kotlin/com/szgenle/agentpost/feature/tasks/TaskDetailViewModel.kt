@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
 import com.szgenle.agentpost.core.datastore.AppPreferences
+import com.szgenle.agentpost.core.model.Attachment
 import com.szgenle.agentpost.core.model.Task
 import com.szgenle.agentpost.core.model.TaskMessage
 import com.szgenle.agentpost.core.ui.UiText
@@ -28,7 +29,20 @@ data class TaskDetailUiState(
     val draftReply: String = "",
     val sending: Boolean = false,
     val isRefreshing: Boolean = false,
+    /** 正在下载中的附件 key 集合，key 格式 `"$messageId:$attachmentIndex"`。 */
+    val downloadingKeys: Set<String> = emptySet(),
+    /**
+     * 一次性的打开附件请求。UI 消费后调用 [TaskDetailViewModel.consumePendingOpen] 清空，
+     * 避免 配置变更 后重发。
+     */
+    val pendingOpen: PendingOpen? = null,
     val error: UiText? = null,
+)
+
+/** 打开附件需要的最小信息：本地路径 + MIME。 */
+data class PendingOpen(
+    val filePath: String,
+    val mimeType: String,
 )
 
 class TaskDetailViewModel(
@@ -52,6 +66,8 @@ class TaskDetailViewModel(
             draftReply = draft,
             sending = t.sending,
             isRefreshing = t.refreshing,
+            downloadingKeys = t.downloadingKeys,
+            pendingOpen = t.pendingOpen,
             error = t.error,
         )
     }.stateIn(
@@ -142,9 +158,71 @@ class TaskDetailViewModel(
         transient.value = transient.value.copy(error = null)
     }
 
+    /**
+     * 处理附件点击：
+     * - 已有 [Attachment.localPath] 且文件存在→直接请求打开
+     * - 有 `imapUid` 但还没落盘→触发下载，完成后自动请求打开
+     * - 本机发出的附件（无 imapUid 也无 localPath）→返回不可用提示
+     *
+     * 同一条附件正在下载时重复点击会被忽略（降低对 SMTP/IMAP 无谓压力）。
+     */
+    fun onAttachmentClick(messageLocalId: String, index: Int, att: Attachment) {
+        // 已落盘：直接打开
+        val localPath = att.localPath
+        if (!localPath.isNullOrBlank() && java.io.File(localPath).exists()) {
+            transient.value = transient.value.copy(
+                pendingOpen = PendingOpen(localPath, att.mimeType),
+            )
+            return
+        }
+        // 本机发出的附件没有下载信息
+        if (att.imapUid == null || att.partIndex == null) {
+            transient.value = transient.value.copy(
+                error = UiText.Resource(R.string.attachment_not_downloadable),
+            )
+            return
+        }
+        val key = "$messageLocalId:$index"
+        if (key in transient.value.downloadingKeys) return
+
+        viewModelScope.launch {
+            transient.value = transient.value.copy(
+                downloadingKeys = transient.value.downloadingKeys + key,
+            )
+            val r = repo.downloadAttachment(messageLocalId, index)
+            val newDownloading = transient.value.downloadingKeys - key
+            transient.value = r.fold(
+                onSuccess = { path ->
+                    transient.value.copy(
+                        downloadingKeys = newDownloading,
+                        pendingOpen = PendingOpen(path, att.mimeType),
+                    )
+                },
+                onFailure = { e ->
+                    val msg = e.message
+                    val uiText = if (!msg.isNullOrBlank()) {
+                        UiText.Dynamic(msg)
+                    } else {
+                        UiText.Resource(R.string.attachment_download_failed)
+                    }
+                    transient.value.copy(
+                        downloadingKeys = newDownloading,
+                        error = uiText,
+                    )
+                },
+            )
+        }
+    }
+
+    fun consumePendingOpen() {
+        transient.value = transient.value.copy(pendingOpen = null)
+    }
+
     private data class TransientState(
         val sending: Boolean = false,
         val refreshing: Boolean = false,
+        val downloadingKeys: Set<String> = emptySet(),
+        val pendingOpen: PendingOpen? = null,
         val error: UiText? = null,
     )
 

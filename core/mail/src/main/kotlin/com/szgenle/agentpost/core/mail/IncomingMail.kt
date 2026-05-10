@@ -38,8 +38,14 @@ data class IncomingAttachment(
     val mimeType: String,
     val sizeBytes: Long,
     /**
+     * 附件在来信 walkParts 顺序里的 0-based 序号（字符串形式）。
+     * 用于后续懒下载时搭配 IMAP UID 重新定位 part。
+     */
+    val partIndex: String,
+    /**
      * 懒加载：调用时才真正读字节流。
-     * MVP 阶段 UI 点开时才下载，列表展示只用 metadata。
+     * **注意**：仅在 [MailFetcher.fetchNew] 的本次返回结果包被消费时有效（Store 还没关）；
+     * 持久化后再下载必须走 [MailFetcher.fetchAttachment]。
      */
     val openStream: () -> java.io.InputStream,
 )

@@ -66,6 +66,45 @@ internal class JakartaMailFetcher : MailFetcher {
         }
     }
 
+    override suspend fun fetchAttachment(
+        credentials: MailCredentials,
+        imapUid: Long,
+        partIndex: String,
+    ): java.io.InputStream = withContext(Dispatchers.IO) {
+        val target = partIndex.toIntOrNull()
+            ?: error("invalid partIndex=$partIndex")
+        openStore(credentials).use { store ->
+            val folder = store.store.getFolder("INBOX") as IMAPFolder
+            folder.open(Folder.READ_ONLY)
+            try {
+                val msg = folder.getMessageByUID(imapUid) as? MimeMessage
+                    ?: error("message not found for uid=$imapUid")
+                // 用与 collectAttachments 一致的 walkParts 顺序重新算，定位到第 target 个附件
+                var found: Part? = null
+                var cursor = 0
+                walkParts(msg) { p ->
+                    if (found != null) return@walkParts
+                    val disp = runCatching { p.disposition }.getOrNull()
+                    val isAttachment = Part.ATTACHMENT.equals(disp, ignoreCase = true) ||
+                        !p.fileName.isNullOrBlank()
+                    if (isAttachment && !p.fileName.isNullOrBlank()) {
+                        if (cursor == target) {
+                            found = p
+                        }
+                        cursor++
+                    }
+                }
+                val part = found ?: error("attachment part $partIndex not found on uid=$imapUid")
+                // 注意：Store 关闭后流也会失效，调用方需在本方法回前读完。
+                // 我们直接读成字节再给 ByteArrayInputStream，避免生命周期问题。
+                val bytes = part.inputStream.use { it.readBytes() }
+                java.io.ByteArrayInputStream(bytes)
+            } finally {
+                folder.close(false)
+            }
+        }
+    }
+
     // ---------------- private ----------------
 
     private fun openStore(credentials: MailCredentials): StoreHandle {
@@ -121,6 +160,7 @@ internal class JakartaMailFetcher : MailFetcher {
 
     private fun collectAttachments(part: Part): List<IncomingAttachment> {
         val result = mutableListOf<IncomingAttachment>()
+        var index = 0
         walkParts(part) { p ->
             val disp = runCatching { p.disposition }.getOrNull()
             val isAttachment = Part.ATTACHMENT.equals(disp, ignoreCase = true) ||
@@ -130,8 +170,10 @@ internal class JakartaMailFetcher : MailFetcher {
                     fileName = MimeUtils.decodeMime(p.fileName),
                     mimeType = p.contentType.substringBefore(';').trim().ifEmpty { "application/octet-stream" },
                     sizeBytes = p.size.toLong(),
+                    partIndex = index.toString(),
                     openStream = { p.inputStream },
                 )
+                index++
             }
         }
         return result

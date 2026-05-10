@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 路径白名单。
+
+  - files-path name="attachments" path="attachments/"
+    映射到 `Context.filesDir/attachments/`，配合 MailRepository.downloadAttachment
+    的落盘规则 `filesDir/attachments/{messageLocalId}/{fileName}`。
+    只暴露这一个子目录，避免把整个 filesDir 对外共享。
+-->
+<paths>
+    <files-path
+        name="attachments"
+        path="attachments/" />
+</paths>

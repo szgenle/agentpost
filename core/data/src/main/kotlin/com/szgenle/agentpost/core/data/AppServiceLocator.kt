@@ -52,6 +52,7 @@ object AppServiceLocator {
             val prefs = AppPreferences(app)
             _appPreferences = prefs
             _mailRepository = MailRepository(
+                appContext = app,
                 accountDao = db.accountDao(),
                 taskDao = db.taskDao(),
                 messageDao = db.taskMessageDao(),
