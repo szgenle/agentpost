@@ -5,9 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,7 +30,11 @@ import com.szgenle.agentpost.feature.tasks.TasksRoute
 import com.szgenle.agentpost.feature.tasks.UnclassifiedRoute
 import com.szgenle.agentpost.notification.NotificationController
 
-class MainActivity : ComponentActivity() {
+// 继承 AppCompatActivity 而非 ComponentActivity：
+// AppCompatDelegate.setApplicationLocales 在 pre-33 上通过 AppCompat 的
+// attachBaseContext 注入运行时 locale，非 AppCompatActivity 宿主拿不到该注入，
+// 切「English」会看起来完全无效。
+class MainActivity : AppCompatActivity() {
 
     /**
      * 从通知点击进来的 taskId：由 Activity 在 onCreate/onNewIntent 读取，

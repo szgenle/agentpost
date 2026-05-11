@@ -38,9 +38,6 @@ class AgentPostApp : Application() {
         NotificationController.ensureChannel(this)
         SyncMailWorker.enqueuePeriodic(this)
         ForegroundSyncScheduler.install()
-        // 实时推送总控：订阅偏好开关，为 true 时拉起 PushSyncService。
-        // 默认 false，仅在用户主动开启后才出现前台服务 + IDLE 长连。
-        PushSyncController.install(this)
         // 实时推送总控：订阅偏好开关。开关 false（默认）时不会拉起 Service，
         // 用户在设置页打开后再让前台服务带着 IDLE 长连进驻。
         PushSyncController.install(this)

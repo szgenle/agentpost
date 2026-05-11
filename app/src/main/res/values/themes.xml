@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base theme. MVP 先用系统默认 Material3 动态颜色基座，后续接 core:ui 里的自定义主题。 -->
-    <style name="Theme.AgentPost" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Base theme 必须派生自 AppCompat：
+         per-app 语言切换 (AppCompatDelegate.setApplicationLocales) 在 pre-33 上依赖
+         AppCompatActivity 的 attachBaseContext 注入运行时 locale，
+         而 AppCompatActivity 又要求宿主主题派生自 AppCompat。
+         Compose 侧自行 MaterialTheme，不依赖 XML 样式。 -->
+    <style name="Theme.AgentPost" parent="Theme.AppCompat.DayNight.NoActionBar" />
 </resources>
