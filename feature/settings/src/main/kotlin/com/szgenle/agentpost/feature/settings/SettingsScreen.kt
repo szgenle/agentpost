@@ -6,12 +6,11 @@ import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -190,7 +189,6 @@ fun SettingsRoute(
 
             // ============ 第 2 组：通知与推送 ============
             // 围绕「邮件到了之后怎么提示用户」这条主线：系统通知权限、后台运行权限、实时推送开关。
-            Spacer(Modifier.height(8.dp))
             SectionHeader(stringResource(R.string.settings_group_notifications))
 
             // 允许通知：点击跳系统 App 通知设置页
@@ -264,7 +262,6 @@ fun SettingsRoute(
 
             // ============ 第 3 组：其它 ============
             // 与主线关系较弱的通用选项：语言、崩溃上报、附件密码、命令模板。
-            Spacer(Modifier.height(8.dp))
             SectionHeader(stringResource(R.string.settings_group_others))
 
             // 语言行：右侧直接放两颗 FilterChip 原地切换
@@ -434,15 +431,21 @@ fun SettingsRoute(
     }
 }
 
-/** 设置页分组标题：放在每组首条 ListItem 之前，用颜色 + 字号区别于正文，
- * 来替代纯 Divider 平铺的压押感；内况留白与 Material 3 密度列表对齐。 */
+/** 设置页分组标题：整行铺一条 surfaceVariant 背景色，
+ * 让用户扫一眼就能看到「这里是新一组的开始」，而不是空白+小字。
+ * - 背景：colorScheme.surfaceVariant（浅灰/浅染，浅深色主题都能适配）
+ * - 文本：colorScheme.onSurfaceVariant（与背景天然对比）
+ * - 字重：titleSmall；左右内边距 16.dp 对齐 ListItem。 */
 @Composable
 private fun SectionHeader(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
     )
 }
 
