@@ -1,17 +1,21 @@
 package com.szgenle.agentpost.feature.tasks
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Badge
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -26,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -188,51 +193,75 @@ fun TasksRoute(
                     }
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                // 卡片式列表：上下留边、卡片间垂直间距 10dp，让每个任务独立成块。
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     // 顶部固定行：未分类消息入口。条数为 0 时整行不渲染，
                     // 使用者看不到干扰；一旦有兜底邮件再置顶提醒。
+                    // 用 tertiaryContainer 色卡片与普通任务卡片区分，强调"待处理"。
                     if (unclassifiedCount > 0) {
                         item(key = "__unclassified_entry__") {
-                            ListItem(
-                                headlineContent = {
-                                    Text(stringResource(R.string.tasks_unclassified_entry))
-                                },
-                                supportingContent = {
-                                    Text(
-                                        stringResource(
-                                            R.string.tasks_unclassified_entry_hint,
-                                        ),
-                                    )
-                                },
-                                trailingContent = {
-                                    Badge { Text(unclassifiedCount.toString()) }
-                                },
-                                modifier = Modifier.clickable { onOpenUnclassified() },
-                            )
+                            ElevatedCard(
+                                onClick = onOpenUnclassified,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.elevatedCardColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                ),
+                            ) {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(stringResource(R.string.tasks_unclassified_entry))
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            stringResource(
+                                                R.string.tasks_unclassified_entry_hint,
+                                            ),
+                                        )
+                                    },
+                                    trailingContent = {
+                                        Badge { Text(unclassifiedCount.toString()) }
+                                    },
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = Color.Transparent,
+                                    ),
+                                )
+                            }
                         }
                     }
                     items(briefs, key = { it.task.id }) { brief ->
-                        ListItem(
-                            overlineContent = {
-                                Text(RelativeTime.format(context, brief.lastMessageAt))
-                            },
-                            headlineContent = {
-                                Text(brief.task.title.ifEmpty { untitled })
-                            },
-                            supportingContent = {
-                                Text(
-                                    text = brief.lastMessagePreview.ifEmpty { noMessages },
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            },
-                            trailingContent = {
-                                if (brief.unreadCount > 0) {
-                                    Badge { Text(brief.unreadCount.toString()) }
-                                }
-                            },
-                            modifier = Modifier.clickable { onOpenTask(brief.task.id) },
-                        )
+                        ElevatedCard(
+                            onClick = { onOpenTask(brief.task.id) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            ListItem(
+                                overlineContent = {
+                                    Text(RelativeTime.format(context, brief.lastMessageAt))
+                                },
+                                headlineContent = {
+                                    Text(brief.task.title.ifEmpty { untitled })
+                                },
+                                supportingContent = {
+                                    Text(
+                                        text = brief.lastMessagePreview.ifEmpty { noMessages },
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                                trailingContent = {
+                                    if (brief.unreadCount > 0) {
+                                        Badge { Text(brief.unreadCount.toString()) }
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = Color.Transparent,
+                                ),
+                            )
+                        }
                     }
                 }
             }
