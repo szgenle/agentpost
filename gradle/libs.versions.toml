@@ -49,6 +49,9 @@ kotlinx-serialization = "1.7.3"
 # Markdown
 compose-markdown = "0.5.4"
 
+# Zip4j：加密 zip 附件解压
+zip4j = "2.11.5"
+
 # JUnit
 junit = "4.13.2"
 androidx-junit = "1.2.1"
@@ -109,6 +112,9 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 
 # Markdown
 compose-markdown = { group = "com.github.jeziellago", name = "compose-markdown", version.ref = "compose-markdown" }
+
+# Zip4j：支持 ZipCrypto + AES-128/256 的加密 zip 解压
+zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
 
 # Tests
 junit = { group = "junit", name = "junit", version.ref = "junit" }

@@ -48,4 +48,14 @@
     <string name="attachment_download_failed">Failed to download attachment</string>
     <string name="attachment_not_downloadable">This attachment cannot be downloaded</string>
     <string name="attachment_no_app_to_open">No app available to open this file</string>
+
+    <!-- Encrypted zip attachment decryption -->
+    <string name="attachment_decrypt_empty">Archive decrypted but empty</string>
+    <string name="attachment_decrypt_failed">Failed to decrypt attachment</string>
+    <!-- %1$s = attachment file name -->
+    <string name="attachment_zip_prompt_title">Enter decrypt password</string>
+    <string name="attachment_zip_prompt_desc">“%1$s” is an encrypted zip. Enter the password to decrypt it this time.</string>
+    <string name="attachment_zip_prompt_desc_wrong">The master password did not work for “%1$s”. Please enter the correct one.</string>
+    <string name="attachment_zip_prompt_hint">Password</string>
+    <string name="attachment_zip_prompt_confirm">Decrypt &amp; open</string>
 </resources>

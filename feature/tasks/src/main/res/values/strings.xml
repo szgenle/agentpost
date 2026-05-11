@@ -50,4 +50,14 @@
     <string name="attachment_download_failed">附件下载失败</string>
     <string name="attachment_not_downloadable">该附件不可下载</string>
     <string name="attachment_no_app_to_open">没有可打开此类文件的应用</string>
+
+    <!-- 加密 zip 附件解密 -->
+    <string name="attachment_decrypt_empty">解压完成但压缩包是空的</string>
+    <string name="attachment_decrypt_failed">附件解密失败</string>
+    <!-- %1$s = 附件文件名 -->
+    <string name="attachment_zip_prompt_title">输入解压密码</string>
+    <string name="attachment_zip_prompt_desc">附件「%1$s」是加密的 zip，请输入本次解压用的密码。</string>
+    <string name="attachment_zip_prompt_desc_wrong">主密码错了，附件「%1$s」仍加密。请手输正确的密码。</string>
+    <string name="attachment_zip_prompt_hint">密码</string>
+    <string name="attachment_zip_prompt_confirm">解压并打开</string>
 </resources>

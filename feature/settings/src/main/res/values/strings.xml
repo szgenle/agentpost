@@ -52,6 +52,7 @@
     <string name="settings_row_notifications">允许通知</string>
     <string name="settings_row_background">允许后台运行</string>
     <string name="settings_row_crash_report">崩溃上报</string>
+    <string name="settings_row_zip_password">加密附件密码</string>
 
     <!-- 权限状态副文案 -->
     <string name="settings_permission_allowed">已允许</string>
@@ -88,4 +89,12 @@
     <string name="settings_crash_ask">每次询问</string>
     <string name="settings_crash_auto">自动发到我的邮箱</string>
     <string name="settings_crash_never">从不上报</string>
+
+    <!-- 加密附件（zip）主解密密码 -->
+    <string name="settings_zip_password_set">已设置</string>
+    <string name="settings_zip_password_unset">未设置，点此设置</string>
+    <string name="settings_zip_password_dialog_title">加密附件密码</string>
+    <string name="settings_zip_password_dialog_desc">打开加密 zip 附件时会先用此密码自动试解；失败时会提示手输。</string>
+    <string name="settings_zip_password_hint">主密码</string>
+    <string name="settings_zip_password_clear">清除</string>
 </resources>

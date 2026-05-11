@@ -21,6 +21,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -48,6 +50,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -176,6 +180,15 @@ fun TaskDetailRoute(
                 },
             )
         }
+    }
+
+    // 加密 zip 密码请求 Dialog：VM 下发 zipPrompt 时弹出。
+    state.zipPrompt?.let { prompt ->
+        ZipPasswordPromptDialog(
+            prompt = prompt,
+            onSubmit = viewModel::submitZipPassword,
+            onDismiss = viewModel::cancelZipPrompt,
+        )
     }
 }
 
@@ -425,4 +438,52 @@ private fun openAttachment(
     } catch (_: ActivityNotFoundException) {
         false
     }
+}
+
+/**
+ * 加密 zip 解压密码输入 Dialog：
+ * - [ZipPasswordPrompt.wrongPassword] 决定提示文案是「首次输入」还是「主密码错」；
+ * - 确认回调交给 [TaskDetailViewModel.submitZipPassword]，由 VM 再次调 [com.szgenle.agentpost.core.data.MailRepository.decryptZipAttachment]。
+ */
+@Composable
+private fun ZipPasswordPromptDialog(
+    prompt: ZipPasswordPrompt,
+    onSubmit: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+    val desc = if (prompt.wrongPassword) {
+        stringResource(R.string.attachment_zip_prompt_desc_wrong, prompt.fileName)
+    } else {
+        stringResource(R.string.attachment_zip_prompt_desc, prompt.fileName)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.attachment_zip_prompt_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = desc, style = MaterialTheme.typography.bodyMedium)
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.attachment_zip_prompt_hint)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSubmit(password) },
+                enabled = password.isNotEmpty(),
+            ) { Text(stringResource(R.string.attachment_zip_prompt_confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(CoreUiR.string.common_cancel))
+            }
+        },
+    )
 }

@@ -4,6 +4,8 @@ import android.content.Context
 import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.common.mail.SubjectNormalizer
 import com.szgenle.agentpost.core.common.security.CredentialsVault
+import com.szgenle.agentpost.core.common.zip.DecryptResult
+import com.szgenle.agentpost.core.common.zip.ZipDecryptor
 import com.szgenle.agentpost.core.data.internal.TaskRouter
 import com.szgenle.agentpost.core.database.dao.AccountDao
 import com.szgenle.agentpost.core.database.dao.TaskDao
@@ -63,6 +65,42 @@ class MailRepository internal constructor(
     suspend fun hasSelfPassword(): Boolean {
         val existing = accountDao.getFirstByType(AccountType.SELF) ?: return false
         return vault.contains(existing.credentialKey)
+    }
+
+    // ============================================================
+    // 加密 zip 附件主密码
+    // ============================================================
+    // 密码与 Account 凭据共用同一个 EncryptedSharedPreferences。
+    // feature 层不直接触 vault，通过 Repository 开放最小 API。
+
+    fun hasZipPassword(): Boolean = vault.contains(CredentialsVault.ZIP_MASTER_KEY)
+
+    fun getZipPassword(): String? = vault.get(CredentialsVault.ZIP_MASTER_KEY)
+
+    fun setZipPassword(password: String) {
+        vault.put(CredentialsVault.ZIP_MASTER_KEY, password)
+    }
+
+    fun clearZipPassword() {
+        vault.remove(CredentialsVault.ZIP_MASTER_KEY)
+    }
+
+    /**
+     * 尝试用 [password] 解密 [src]。
+     *
+     * 解压级路径：`cacheDir/decrypted/{messageId}/{attIndex}/`，解压前先递归清一遍避免老残留。
+     * App 启动时 `AgentPostApp.onCreate` 会整体清除 `cacheDir/decrypted/`，再架上本方法的单次清除，
+     * 保证解压结果不跨生命周期泄露。
+     */
+    suspend fun decryptZipAttachment(
+        messageId: String,
+        attIndex: Int,
+        src: File,
+        password: String,
+    ): DecryptResult {
+        val outputDir = File(appContext.cacheDir, "decrypted/$messageId/$attIndex")
+        runCatching { outputDir.deleteRecursively() }
+        return ZipDecryptor.decrypt(src = src, outputDir = outputDir, password = password)
     }
 
     /**

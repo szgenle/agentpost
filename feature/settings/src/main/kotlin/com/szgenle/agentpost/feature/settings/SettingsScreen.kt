@@ -30,6 +30,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.runtime.Composable
@@ -42,6 +43,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
@@ -74,6 +77,7 @@ fun SettingsRoute(
     var showAgentDialog by remember { mutableStateOf(false) }
     var showSelfDialog by remember { mutableStateOf(false) }
     var showCrashPrefDialog by remember { mutableStateOf(false) }
+    var showZipPasswordDialog by remember { mutableStateOf(false) }
 
     // 系统级权限状态：用户去系统设置授权后回来 ON_RESUME 重读一次
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -256,6 +260,28 @@ fun SettingsRoute(
                 },
                 modifier = Modifier.clickable { showCrashPrefDialog = true },
             )
+            HorizontalDivider()
+
+            // 9. 加密附件密码：用于自动解压家里 AI 回传的加密 zip
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_zip_password)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(
+                            if (state.hasZipPassword) R.string.settings_zip_password_set
+                            else R.string.settings_zip_password_unset,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable { showZipPasswordDialog = true },
+            )
 
             // 9. [DEBUG only] 触发一次测试崩溃：验证 CrashHandler 落盘与下次启动的上报流程。
             // Release 包 FLAG_DEBUGGABLE=0，此行自动消失。测完可整段删除。
@@ -313,6 +339,20 @@ fun SettingsRoute(
                 showCrashPrefDialog = false
             },
             onDismiss = { showCrashPrefDialog = false },
+        )
+    }
+    if (showZipPasswordDialog) {
+        ZipPasswordDialog(
+            hasPassword = state.hasZipPassword,
+            onSave = { pw ->
+                viewModel.setZipPassword(pw)
+                showZipPasswordDialog = false
+            },
+            onClear = {
+                viewModel.clearZipPassword()
+                showZipPasswordDialog = false
+            },
+            onDismiss = { showZipPasswordDialog = false },
         )
     }
 }
@@ -499,4 +539,60 @@ private fun CrashPrefOption(
         RadioButton(selected = selected, onClick = onClick)
         Text(label)
     }
+}
+
+/**
+ * 加密附件主密码编辑弹框：
+ * - 输入框走 [PasswordVisualTransformation] 隐藏明文，键盘类型 Password；
+ * - 「保存」在输入非空时生效，空串走 clear 语义（由 VM 兜底）；
+ * - 「清除」仅在已设置状态展示，避免首次配置时误触；
+ * - 「取消」不落盘。
+ */
+@Composable
+private fun ZipPasswordDialog(
+    hasPassword: Boolean,
+    onSave: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var password by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_zip_password_dialog_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_zip_password_dialog_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.settings_zip_password_hint)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(password) },
+                enabled = password.isNotEmpty(),
+            ) { Text(stringResource(CoreUiR.string.common_save)) }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (hasPassword) {
+                    TextButton(onClick = onClear) {
+                        Text(stringResource(R.string.settings_zip_password_clear))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(CoreUiR.string.common_cancel))
+                }
+            }
+        },
+    )
 }

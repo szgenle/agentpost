@@ -34,6 +34,12 @@ class CredentialsVault internal constructor(
         private const val PREF_FILE = "agentpost_credentials"
 
         /**
+         * 加密 zip 附件的主解密密码统一存储 key。
+         * 与 Account 凭据共用同一个保险箱（EncryptedSharedPreferences），不新开存储。
+         */
+        const val ZIP_MASTER_KEY: String = "__zip_decrypt_master__"
+
+        /**
          * 由 ServiceLocator / Application 调用构造，失败直接抛异常
          * （MasterKey 初始化走 Android Keystore，极少失败）。
          */

@@ -11,4 +11,6 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":core:data"))
     implementation(project(":core:datastore"))
+    // 附件解密流程用到 ZipDecryptor
+    implementation(project(":core:common"))
 }

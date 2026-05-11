@@ -6,9 +6,17 @@
     映射到 `Context.filesDir/attachments/`，配合 MailRepository.downloadAttachment
     的落盘规则 `filesDir/attachments/{messageLocalId}/{fileName}`。
     只暴露这一个子目录，避免把整个 filesDir 对外共享。
+
+  - cache-path name="decrypted" path="decrypted/"
+    映射到 `Context.cacheDir/decrypted/`，配合 MailRepository.decryptZipAttachment
+    的解压产物落盘规则 `cacheDir/decrypted/{messageId}/{attIndex}/`。
+    App 启动时由 AgentPostApp.onCreate 整体清除，不跨生命周期泄露。
 -->
 <paths>
     <files-path
         name="attachments"
         path="attachments/" />
+    <cache-path
+        name="decrypted"
+        path="decrypted/" />
 </paths>

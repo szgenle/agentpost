@@ -37,6 +37,10 @@ class AgentPostApp : Application() {
         NotificationController.ensureChannel(this)
         SyncMailWorker.enqueuePeriodic(this)
         ForegroundSyncScheduler.install()
+        // 启动时整体清除加密 zip 解压产物：保证上次会话的明文残留不跨生命周期泄露。
+        // 放在 Worker/前台轮询启动后，纯 IO 并不阻塞界面拉起。
+        runCatching { File(cacheDir, "decrypted").deleteRecursively() }
+            .onFailure { AppLog.w(TAG, "clear cacheDir/decrypted failed: ${it.message}") }
     }
 
     private fun installLogger() {

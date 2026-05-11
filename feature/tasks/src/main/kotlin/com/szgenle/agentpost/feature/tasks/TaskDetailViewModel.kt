@@ -1,5 +1,6 @@
 package com.szgenle.agentpost.feature.tasks
 
+import android.webkit.MimeTypeMap
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -7,6 +8,8 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.szgenle.agentpost.core.common.zip.DecryptResult
+import com.szgenle.agentpost.core.common.zip.ZipDecryptor
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
 import com.szgenle.agentpost.core.datastore.AppPreferences
@@ -14,12 +17,15 @@ import com.szgenle.agentpost.core.model.Attachment
 import com.szgenle.agentpost.core.model.Task
 import com.szgenle.agentpost.core.model.TaskMessage
 import com.szgenle.agentpost.core.ui.UiText
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 
 const val TASK_ID_ARG = "taskId"
 
@@ -36,6 +42,8 @@ data class TaskDetailUiState(
      * 避免 配置变更 后重发。
      */
     val pendingOpen: PendingOpen? = null,
+    /** 加密 zip 需要用户手输密码时的提示态，null 表示无待确认。 */
+    val zipPrompt: ZipPasswordPrompt? = null,
     val error: UiText? = null,
 )
 
@@ -43,6 +51,22 @@ data class TaskDetailUiState(
 data class PendingOpen(
     val filePath: String,
     val mimeType: String,
+)
+
+/**
+ * 加密 zip 解密密码提示的上下文。
+ *
+ * - [messageId] / [attIndex]：定位解压目录（跟cacheDir/decrypted/{messageId}/{attIndex}保持一致）；
+ * - [srcPath]：待解密 zip 文件绝对路径；
+ * - [fileName]：Dialog 文案展示的附件名；
+ * - [wrongPassword]：true 表示试过主密码但密码错（UI 换更严重的提示文案）。
+ */
+data class ZipPasswordPrompt(
+    val messageId: String,
+    val attIndex: Int,
+    val srcPath: String,
+    val fileName: String,
+    val wrongPassword: Boolean,
 )
 
 class TaskDetailViewModel(
@@ -68,6 +92,7 @@ class TaskDetailViewModel(
             isRefreshing = t.refreshing,
             downloadingKeys = t.downloadingKeys,
             pendingOpen = t.pendingOpen,
+            zipPrompt = t.zipPrompt,
             error = t.error,
         )
     }.stateIn(
@@ -160,19 +185,17 @@ class TaskDetailViewModel(
 
     /**
      * 处理附件点击：
-     * - 已有 [Attachment.localPath] 且文件存在→直接请求打开
-     * - 有 `imapUid` 但还没落盘→触发下载，完成后自动请求打开
+     * - 已有 [Attachment.localPath] 且文件存在→走加密判断后直接打开或请求密码
+     * - 有 `imapUid` 但还没落盘→触发下载，完成后同样走加密判断
      * - 本机发出的附件（无 imapUid 也无 localPath）→返回不可用提示
      *
      * 同一条附件正在下载时重复点击会被忽略（降低对 SMTP/IMAP 无谓压力）。
      */
     fun onAttachmentClick(messageLocalId: String, index: Int, att: Attachment) {
-        // 已落盘：直接打开
+        // 已落盘：先判断是否加密 zip，再分流打开
         val localPath = att.localPath
-        if (!localPath.isNullOrBlank() && java.io.File(localPath).exists()) {
-            transient.value = transient.value.copy(
-                pendingOpen = PendingOpen(localPath, att.mimeType),
-            )
+        if (!localPath.isNullOrBlank() && File(localPath).exists()) {
+            handleAttachmentReady(messageLocalId, index, File(localPath), att)
             return
         }
         // 本机发出的附件没有下载信息
@@ -190,14 +213,11 @@ class TaskDetailViewModel(
                 downloadingKeys = transient.value.downloadingKeys + key,
             )
             val r = repo.downloadAttachment(messageLocalId, index)
-            val newDownloading = transient.value.downloadingKeys - key
-            transient.value = r.fold(
-                onSuccess = { path ->
-                    transient.value.copy(
-                        downloadingKeys = newDownloading,
-                        pendingOpen = PendingOpen(path, att.mimeType),
-                    )
-                },
+            transient.value = transient.value.copy(
+                downloadingKeys = transient.value.downloadingKeys - key,
+            )
+            r.fold(
+                onSuccess = { path -> handleAttachmentReady(messageLocalId, index, File(path), att) },
                 onFailure = { e ->
                     val msg = e.message
                     val uiText = if (!msg.isNullOrBlank()) {
@@ -205,17 +225,128 @@ class TaskDetailViewModel(
                     } else {
                         UiText.Resource(R.string.attachment_download_failed)
                     }
-                    transient.value.copy(
-                        downloadingKeys = newDownloading,
-                        error = uiText,
-                    )
+                    transient.value = transient.value.copy(error = uiText)
                 },
             )
         }
     }
 
+    /**
+     * 附件已落盘 / 刚下载完成后的统一入口：
+     * - 非加密 zip → 直接 [PendingOpen] 交给 UI 调 FileProvider 打开；
+     * - 加密 zip 且已配置主密码 → 直接解密尝试，错了才弹提示；
+     * - 加密 zip 但未配置主密码 → 直接弹提示（wrongPassword=false）。
+     */
+    private fun handleAttachmentReady(messageId: String, index: Int, src: File, att: Attachment) {
+        viewModelScope.launch {
+            val encrypted = withContext(Dispatchers.IO) { ZipDecryptor.isEncryptedZip(src) }
+            if (!encrypted) {
+                transient.value = transient.value.copy(
+                    pendingOpen = PendingOpen(src.absolutePath, att.mimeType),
+                )
+                return@launch
+            }
+            val master = repo.getZipPassword()
+            if (master.isNullOrEmpty()) {
+                transient.value = transient.value.copy(
+                    zipPrompt = ZipPasswordPrompt(
+                        messageId = messageId,
+                        attIndex = index,
+                        srcPath = src.absolutePath,
+                        fileName = att.fileName,
+                        wrongPassword = false,
+                    ),
+                )
+                return@launch
+            }
+            tryDecryptAndOpen(messageId, index, src, att.fileName, master)
+        }
+    }
+
+    /**
+     * 用 [password] 解密 [src]，成功则打开第一个解压产物；密码错弹 Dialog。
+     */
+    private suspend fun tryDecryptAndOpen(
+        messageId: String,
+        index: Int,
+        src: File,
+        fileName: String,
+        password: String,
+    ) {
+        val result = repo.decryptZipAttachment(
+            messageId = messageId,
+            attIndex = index,
+            src = src,
+            password = password,
+        )
+        transient.value = when (result) {
+            is DecryptResult.Success -> {
+                val first = result.files.firstOrNull()
+                if (first == null) {
+                    transient.value.copy(
+                        zipPrompt = null,
+                        error = UiText.Resource(R.string.attachment_decrypt_empty),
+                    )
+                } else {
+                    transient.value.copy(
+                        zipPrompt = null,
+                        pendingOpen = PendingOpen(first.absolutePath, guessMimeType(first)),
+                    )
+                }
+            }
+            is DecryptResult.WrongPassword -> transient.value.copy(
+                zipPrompt = ZipPasswordPrompt(
+                    messageId = messageId,
+                    attIndex = index,
+                    srcPath = src.absolutePath,
+                    fileName = fileName,
+                    wrongPassword = true,
+                ),
+            )
+            is DecryptResult.Failure -> {
+                val msg = result.error.message
+                val uiText = if (!msg.isNullOrBlank()) {
+                    UiText.Dynamic(msg)
+                } else {
+                    UiText.Resource(R.string.attachment_decrypt_failed)
+                }
+                transient.value.copy(zipPrompt = null, error = uiText)
+            }
+        }
+    }
+
+    /** 用户在 Dialog 里输入一次性密码后提交，空串走 [cancelZipPrompt]。 */
+    fun submitZipPassword(password: String) {
+        if (password.isEmpty()) {
+            cancelZipPrompt()
+            return
+        }
+        val prompt = transient.value.zipPrompt ?: return
+        viewModelScope.launch {
+            tryDecryptAndOpen(
+                messageId = prompt.messageId,
+                index = prompt.attIndex,
+                src = File(prompt.srcPath),
+                fileName = prompt.fileName,
+                password = password,
+            )
+        }
+    }
+
+    fun cancelZipPrompt() {
+        transient.value = transient.value.copy(zipPrompt = null)
+    }
+
     fun consumePendingOpen() {
         transient.value = transient.value.copy(pendingOpen = null)
+    }
+
+    /** 根据文件名后缀推 MIME，拿不到则回落 `application/octet-stream`。 */
+    private fun guessMimeType(file: File): String {
+        val ext = file.extension.lowercase()
+        if (ext.isEmpty()) return "application/octet-stream"
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+            ?: "application/octet-stream"
     }
 
     private data class TransientState(
@@ -223,6 +354,7 @@ class TaskDetailViewModel(
         val refreshing: Boolean = false,
         val downloadingKeys: Set<String> = emptySet(),
         val pendingOpen: PendingOpen? = null,
+        val zipPrompt: ZipPasswordPrompt? = null,
         val error: UiText? = null,
     )
 

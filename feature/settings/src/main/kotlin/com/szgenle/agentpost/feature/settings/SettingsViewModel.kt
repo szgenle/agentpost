@@ -39,6 +39,8 @@ data class SettingsUiState(
     val fetchIntervals: FetchIntervals = FetchIntervals(60, 15),
     /** 崩溃上报偏好。默认询问，与 [AppPreferences] 默认一致。 */
     val crashReportPref: CrashReportPref = CrashReportPref.ASK_EACH_TIME,
+    /** 加密 zip 附件主密码是否已设置（仅显示状态，不回显明文）。 */
+    val hasZipPassword: Boolean = false,
 )
 
 class SettingsViewModel(
@@ -46,7 +48,7 @@ class SettingsViewModel(
     private val prefs: AppPreferences,
 ) : ViewModel() {
 
-    private val transient = MutableStateFlow(TransientState())
+    private val transient = MutableStateFlow(TransientState(hasZipPassword = repo.hasZipPassword()))
 
     val uiState: StateFlow<SettingsUiState> = combine(
         repo.observeSelfAccount(),
@@ -66,6 +68,7 @@ class SettingsViewModel(
                 languageTag = b.langTag,
                 fetchIntervals = b.intervals,
                 crashReportPref = crashPref,
+                hasZipPassword = b.t.hasZipPassword,
             )
         }
     }.stateIn(
@@ -147,9 +150,36 @@ class SettingsViewModel(
         viewModelScope.launch { prefs.setCrashReportPref(pref) }
     }
 
+    /**
+     * 设置加密 zip 附件的主解密密码。空串等同清除。
+     *
+     * 密码写入 [CredentialsVault]（EncryptedSharedPreferences）后立刻权威；
+     * UI 侧只重置 hasZipPassword 状态，不在界面再回显明文。
+     */
+    fun setZipPassword(password: String) {
+        val trimmed = password
+        viewModelScope.launch {
+            if (trimmed.isEmpty()) {
+                repo.clearZipPassword()
+            } else {
+                repo.setZipPassword(trimmed)
+            }
+            transient.value = transient.value.copy(hasZipPassword = repo.hasZipPassword())
+        }
+    }
+
+    /** 清除已保存的 zip 主密码。 */
+    fun clearZipPassword() {
+        viewModelScope.launch {
+            repo.clearZipPassword()
+            transient.value = transient.value.copy(hasZipPassword = false)
+        }
+    }
+
     private data class TransientState(
         val message: UiText? = null,
         val busy: Boolean = false,
+        val hasZipPassword: Boolean = false,
     )
 
     /** 5 元组中间态：规避 combine 只有 5 参重载的限制。 */
