@@ -33,7 +33,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import com.szgenle.agentpost.core.ui.components.AppTopBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -104,7 +104,7 @@ fun TaskDetailRoute(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = {
                     val untitled = stringResource(R.string.tasks_untitled)
                     val loading = stringResource(R.string.task_detail_loading)

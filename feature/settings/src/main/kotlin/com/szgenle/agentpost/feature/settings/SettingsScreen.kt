@@ -31,7 +31,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import com.szgenle.agentpost.core.ui.components.AppTopBar
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -101,7 +101,7 @@ fun SettingsRoute(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            AppTopBar(
                 title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
@@ -431,20 +431,20 @@ fun SettingsRoute(
     }
 }
 
-/** 设置页分组标题：整行铺一条 surfaceVariant 背景色，
+/** 设置页分组标题：整行铺一条 surfaceContainerHigh 背景色，
  * 让用户扫一眼就能看到「这里是新一组的开始」，而不是空白+小字。
- * - 背景：colorScheme.surfaceVariant（浅灰/浅染，浅深色主题都能适配）
- * - 文本：colorScheme.onSurfaceVariant（与背景天然对比）
+ * - 背景：colorScheme.surfaceContainerHigh（M3 三层色阶：顶栏 < 内容 < 分组，最显眼一层）
+ * - 文本：colorScheme.onSurface（与容器色天然对比）
  * - 字重：titleSmall；左右内边距 16.dp 对齐 ListItem。 */
 @Composable
 private fun SectionHeader(title: String) {
     Text(
         text = title,
         style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .padding(horizontal = 16.dp, vertical = 10.dp),
     )
 }
