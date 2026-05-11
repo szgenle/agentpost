@@ -6,6 +6,7 @@
 
 **AgentPost** 是一个用**标准邮件协议**作为异步通道的 Android 应用，专为"在外远程控制家里 AI 智能体"而生。人在外（出差/旅行）时，通过手机向家里的 AI 下达任务、查看执行日志和最终结果——就像给家里的秘书发邮件交代事情。
 
+[![Build & Test](https://github.com/szgenle/agentpost/actions/workflows/build.yml/badge.svg)](https://github.com/szgenle/agentpost/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%209%2B-green.svg)](#)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.1-purple.svg)](https://kotlinlang.org/)

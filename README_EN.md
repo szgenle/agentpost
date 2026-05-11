@@ -6,6 +6,7 @@
 
 **AgentPost** is an Android app that uses **standard email protocols** as an asynchronous channel, purpose-built for "remotely commanding your home AI agent while you're away." When you're out (on a business trip or traveling), send tasks to your home AI from your phone and check execution logs and final results — just like emailing your secretary at home to handle errands.
 
+[![Build & Test](https://github.com/szgenle/agentpost/actions/workflows/build.yml/badge.svg)](https://github.com/szgenle/agentpost/actions/workflows/build.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Android%209%2B-green.svg)](#)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.1-purple.svg)](https://kotlinlang.org/)
