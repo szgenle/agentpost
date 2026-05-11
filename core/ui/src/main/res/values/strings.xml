@@ -6,6 +6,7 @@
     <string name="common_save">保存</string>
     <string name="common_send">发送</string>
     <string name="common_sending">发送中</string>
+    <string name="common_delete">删除</string>
 
     <!-- 相对时间文案（核心规则见 core:ui RelativeTime） -->
     <string name="relative_time_just_now">刚刚</string>

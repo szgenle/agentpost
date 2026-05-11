@@ -5,4 +5,8 @@
     <string name="new_task_body_label">正文（指令内容）</string>
     <string name="new_task_sending">发送中...</string>
     <string name="new_task_send_failed">发送失败</string>
+    <!-- 命令模板选择器 -->
+    <string name="new_task_action_pick_template">模板</string>
+    <string name="new_task_template_sheet_title">选择命令模板</string>
+    <string name="new_task_template_sheet_empty">还没有模板。可在「设置 › 命令模板」新建。</string>
 </resources>

@@ -6,4 +6,8 @@
     <string name="new_task_body_label">Body (instructions)</string>
     <string name="new_task_sending">Sending…</string>
     <string name="new_task_send_failed">Send failed</string>
+    <!-- Command template picker -->
+    <string name="new_task_action_pick_template">Templates</string>
+    <string name="new_task_template_sheet_title">Pick a template</string>
+    <string name="new_task_template_sheet_empty">No templates yet. Add one in Settings › Command templates.</string>
 </resources>

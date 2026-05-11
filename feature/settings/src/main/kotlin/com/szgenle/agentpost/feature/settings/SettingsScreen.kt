@@ -63,6 +63,7 @@ fun SettingsRoute(
     onBack: () -> Unit,
     onOpenMail: () -> Unit,
     onOpenFetch: () -> Unit,
+    onNavigateToTemplates: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -309,6 +310,25 @@ fun SettingsRoute(
                     )
                 },
                 modifier = Modifier.clickable { showZipPasswordDialog = true },
+            )
+            HorizontalDivider()
+
+            // 10. 命令模板：进入管理页 CRUD + 排序
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_command_templates)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(R.string.settings_row_command_templates_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable(onClick = onNavigateToTemplates),
             )
 
             // 9. [DEBUG only] 触发一次测试崩溃：验证 CrashHandler 落盘与下次启动的上报流程。

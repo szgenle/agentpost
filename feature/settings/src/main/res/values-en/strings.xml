@@ -51,6 +51,19 @@
     <string name="settings_battery_hint_dont_show_again">Don\'t show again</string>
     <string name="settings_row_crash_report">Crash reports</string>
     <string name="settings_row_zip_password">Attachment decrypt password</string>
+    <string name="settings_row_command_templates">Command templates</string>
+    <string name="settings_row_command_templates_desc">Pre-defined instruction snippets you send to the home AI; one-tap fill on the new task page.</string>
+
+    <!-- Command templates management page -->
+    <string name="command_templates_title">Command templates</string>
+    <string name="command_templates_empty">No templates yet. Tap the + button to create one.</string>
+    <string name="command_templates_new">New template</string>
+    <string name="command_templates_edit">Edit template</string>
+    <string name="command_templates_delete_confirm_title">Delete template?</string>
+    <string name="command_templates_delete_confirm_message">This cannot be undone. Continue?</string>
+    <string name="command_template_field_title">Template name</string>
+    <string name="command_template_field_subject">Email subject</string>
+    <string name="command_template_field_body">Instruction body</string>
 
     <!-- Permission status subtitles -->
     <string name="settings_permission_allowed">Allowed</string>

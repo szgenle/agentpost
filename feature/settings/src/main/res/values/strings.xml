@@ -61,6 +61,19 @@
     <string name="settings_battery_hint_dont_show_again">不再提示</string>
     <string name="settings_row_crash_report">崩溃上报</string>
     <string name="settings_row_zip_password">加密附件密码</string>
+    <string name="settings_row_command_templates">命令模板</string>
+    <string name="settings_row_command_templates_desc">给家里 AI 的常用指令模板库，新建任务时一键填入</string>
+
+    <!-- 命令模板管理页 -->
+    <string name="command_templates_title">命令模板</string>
+    <string name="command_templates_empty">还没有模板。点右下角「+」新建一条吧。</string>
+    <string name="command_templates_new">新建模板</string>
+    <string name="command_templates_edit">编辑模板</string>
+    <string name="command_templates_delete_confirm_title">删除模板？</string>
+    <string name="command_templates_delete_confirm_message">删除后不可恢复。确定继续？</string>
+    <string name="command_template_field_title">模板名称</string>
+    <string name="command_template_field_subject">邮件主题</string>
+    <string name="command_template_field_body">指令正文</string>
 
     <!-- 权限状态副文案 -->
     <string name="settings_permission_allowed">已允许</string>

@@ -6,6 +6,7 @@
     <string name="common_save">Save</string>
     <string name="common_send">Send</string>
     <string name="common_sending">Sending</string>
+    <string name="common_delete">Delete</string>
 
     <!-- Relative time formatting (see core:ui RelativeTime) -->
     <string name="relative_time_just_now">Just now</string>

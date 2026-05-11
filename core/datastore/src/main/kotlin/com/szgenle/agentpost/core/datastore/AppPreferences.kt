@@ -9,9 +9,12 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.szgenle.agentpost.core.model.CommandTemplate
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * 应用级非敏感偏好。
@@ -165,6 +168,25 @@ class AppPreferences(context: Context) {
         store.edit { it[REALTIME_BATTERY_DIALOG_SHOWN_KEY] = shown }
     }
 
+    // --- 命令模板库（#13） ---
+    // 整张列表以 JSON 字符串形式落一个 key。量级小（几十条内），无迁移、无
+    // schema，用 org.json 零新依赖；上层写入是整表覆盖语义，顺序由 UI 层维护。
+    fun observeCommandTemplates(): Flow<List<CommandTemplate>> =
+        store.data.map { CommandTemplateCodec.decode(it[COMMAND_TEMPLATES_KEY]) }
+
+    suspend fun getCommandTemplates(): List<CommandTemplate> =
+        observeCommandTemplates().first()
+
+    suspend fun setCommandTemplates(list: List<CommandTemplate>) {
+        store.edit {
+            if (list.isEmpty()) {
+                it.remove(COMMAND_TEMPLATES_KEY)
+            } else {
+                it[COMMAND_TEMPLATES_KEY] = CommandTemplateCodec.encode(list)
+            }
+        }
+    }
+
     private companion object {
         val LANGUAGE_TAG_KEY = stringPreferencesKey("ui_language_tag")
         val FETCH_FG_SEC_KEY = intPreferencesKey("fetch_foreground_seconds")
@@ -175,9 +197,55 @@ class AppPreferences(context: Context) {
         val REALTIME_PUSH_KEY = booleanPreferencesKey("realtime_push_enabled")
         val REALTIME_BATTERY_DIALOG_SHOWN_KEY =
             booleanPreferencesKey("realtime_battery_dialog_shown")
+        val COMMAND_TEMPLATES_KEY = stringPreferencesKey("command_templates_json")
 
         const val DEFAULT_FG_SEC = 60
         const val DEFAULT_BG_MIN = 15
+    }
+}
+
+/**
+ * 命令模板列表 ↔ JSON 字符串编解码。
+ *
+ * 约定：
+ * - 解码遇到空串、非法 JSON、字段缺失时一律返回空列表，避免损坏一条拖垮全表；
+ * - updatedAt 缺失时回落为 0，保证排序依旧稳定。
+ */
+internal object CommandTemplateCodec {
+    fun encode(list: List<CommandTemplate>): String {
+        val arr = JSONArray()
+        list.forEach { t ->
+            val obj = JSONObject()
+                .put("id", t.id)
+                .put("title", t.title)
+                .put("subject", t.subject)
+                .put("body", t.body)
+                .put("updatedAt", t.updatedAt)
+            arr.put(obj)
+        }
+        return arr.toString()
+    }
+
+    fun decode(raw: String?): List<CommandTemplate> {
+        if (raw.isNullOrBlank()) return emptyList()
+        return runCatching {
+            val arr = JSONArray(raw)
+            buildList(arr.length()) {
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    val id = obj.optString("id").takeIf { it.isNotBlank() } ?: continue
+                    add(
+                        CommandTemplate(
+                            id = id,
+                            title = obj.optString("title"),
+                            subject = obj.optString("subject"),
+                            body = obj.optString("body"),
+                            updatedAt = obj.optLong("updatedAt", 0L),
+                        ),
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
     }
 }
 

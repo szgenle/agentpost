@@ -21,6 +21,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.szgenle.agentpost.crash.CrashReportPrompt
 import com.szgenle.agentpost.feature.newtask.NewTaskRoute
+import com.szgenle.agentpost.feature.settings.CommandTemplatesRoute
 import com.szgenle.agentpost.feature.settings.FetchIntervalRoute
 import com.szgenle.agentpost.feature.settings.MailSetupRoute
 import com.szgenle.agentpost.feature.settings.SettingsRoute
@@ -91,6 +92,7 @@ private object Routes {
     const val SETTINGS = "settings"
     const val SETTINGS_MAIL = "settings/mail"
     const val SETTINGS_FETCH = "settings/fetch"
+    const val SETTINGS_TEMPLATES = "settings/templates"
     const val TASK_DETAIL = "task/{$TASK_ID_ARG}"
     fun taskDetail(taskId: String) = "task/$taskId"
 }
@@ -139,6 +141,7 @@ fun AgentPostNavHost(pendingDeepLinkTaskId: MutableState<String?>) {
                 onBack = { navController.popBackStack() },
                 onOpenMail = { navController.navigate(Routes.SETTINGS_MAIL) },
                 onOpenFetch = { navController.navigate(Routes.SETTINGS_FETCH) },
+                onNavigateToTemplates = { navController.navigate(Routes.SETTINGS_TEMPLATES) },
             )
         }
         composable(Routes.SETTINGS_MAIL) {
@@ -146,6 +149,9 @@ fun AgentPostNavHost(pendingDeepLinkTaskId: MutableState<String?>) {
         }
         composable(Routes.SETTINGS_FETCH) {
             FetchIntervalRoute(onBack = { navController.popBackStack() })
+        }
+        composable(Routes.SETTINGS_TEMPLATES) {
+            CommandTemplatesRoute(onBack = { navController.popBackStack() })
         }
     }
 }
