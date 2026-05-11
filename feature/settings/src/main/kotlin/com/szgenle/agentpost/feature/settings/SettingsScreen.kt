@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -429,20 +430,31 @@ private fun IdentityListItem(
     onClick: () -> Unit,
 ) {
     val emptyLabel = stringResource(R.string.settings_name_email_empty)
+    // 副标题只展示邮箱；没有邮箱时回退到 subtitleHint，再回退到「未设置」。
     val supporting = when {
-        name.isNotBlank() && email.isNotBlank() -> "$name\n$email"
         email.isNotBlank() -> email
-        name.isNotBlank() -> name
         else -> subtitleHint ?: emptyLabel
     }
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(supporting) },
         trailingContent = {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-            )
+            // 名称放在右箭头左侧，与标题同一水平；没有名称时只留箭头。
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (name.isNotBlank()) {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                )
+            }
         },
         modifier = Modifier.clickable(onClick = onClick),
         colors = ListItemDefaults.colors(),
