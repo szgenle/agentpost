@@ -9,7 +9,9 @@ import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -116,27 +118,11 @@ fun SettingsRoute(
                 .padding(padding)
                 .verticalScroll(rememberScrollState()),
         ) {
-            // 1. 语言行：右侧直接放两颗 FilterChip 原地切换
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_row_language)) },
-                trailingContent = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = state.languageTag == "zh-CN",
-                            onClick = { viewModel.setLanguage("zh-CN") },
-                            label = { Text(stringResource(R.string.settings_language_zh)) },
-                        )
-                        FilterChip(
-                            selected = state.languageTag == "en",
-                            onClick = { viewModel.setLanguage("en") },
-                            label = { Text(stringResource(R.string.settings_language_en)) },
-                        )
-                    }
-                },
-            )
-            HorizontalDivider()
+            // ============ 第 1 组：邮箱 ============
+            // 把身份（智能体/我）与邮箱服务器、收件节奏归在一起，围绕「把邮件收进来」这条主线。
+            SectionHeader(stringResource(R.string.settings_group_mailbox))
 
-            // 2. 智能体行：点击弹窗编辑名称+邮箱
+            // 智能体行：点击弹窗编辑名称+邮箱
             IdentityListItem(
                 title = stringResource(R.string.settings_row_agent),
                 subtitleHint = stringResource(R.string.settings_agent_subtitle_hint),
@@ -146,7 +132,7 @@ fun SettingsRoute(
             )
             HorizontalDivider()
 
-            // 3. 我行：点击弹窗编辑名称+邮箱（不动 IMAP/SMTP/密码）
+            // 我行：点击弹窗编辑名称+邮箱（不动 IMAP/SMTP/密码）
             IdentityListItem(
                 title = stringResource(R.string.settings_row_self),
                 subtitleHint = null,
@@ -156,7 +142,7 @@ fun SettingsRoute(
             )
             HorizontalDivider()
 
-            // 4. 邮箱设置行：右侧显示服务商，左滑进入二级页
+            // 邮箱设置行：右侧显示服务商，点击进入二级页
             val providerText = state.self?.email
                 ?.let { MailProviderPresets.matchByEmail(it)?.displayName }
                 ?: stringResource(R.string.settings_mail_provider_custom)
@@ -180,7 +166,7 @@ fun SettingsRoute(
             )
             HorizontalDivider()
 
-            // 5. 收件收取行
+            // 收件收取行
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_fetch)) },
                 trailingContent = {
@@ -201,9 +187,13 @@ fun SettingsRoute(
                 },
                 modifier = Modifier.clickable(onClick = onOpenFetch),
             )
-            HorizontalDivider()
 
-            // 6. 允许通知：点击跳系统 App 通知设置页
+            // ============ 第 2 组：通知与推送 ============
+            // 围绕「邮件到了之后怎么提示用户」这条主线：系统通知权限、后台运行权限、实时推送开关。
+            Spacer(Modifier.height(8.dp))
+            SectionHeader(stringResource(R.string.settings_group_notifications))
+
+            // 允许通知：点击跳系统 App 通知设置页
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_notifications)) },
                 supportingContent = {
@@ -225,7 +215,7 @@ fun SettingsRoute(
             )
             HorizontalDivider()
 
-            // 7. 允许后台运行：跳系统「电池优化」列表让用户将本 App 设为不受限
+            // 允许后台运行：跳系统「电池优化」列表让用户将本 App 设为不受限
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_background)) },
                 supportingContent = {
@@ -247,7 +237,7 @@ fun SettingsRoute(
             )
             HorizontalDivider()
 
-            // 7.5 实时通知（实验）：开关 ON 时拉起前台服务 + IMAP IDLE 长连
+            // 实时通知（实验）：开关 ON 时拉起前台服务 + IMAP IDLE 长连
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_realtime)) },
                 supportingContent = {
@@ -271,9 +261,33 @@ fun SettingsRoute(
                     )
                 },
             )
+
+            // ============ 第 3 组：其它 ============
+            // 与主线关系较弱的通用选项：语言、崩溃上报、附件密码、命令模板。
+            Spacer(Modifier.height(8.dp))
+            SectionHeader(stringResource(R.string.settings_group_others))
+
+            // 语言行：右侧直接放两颗 FilterChip 原地切换
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_language)) },
+                trailingContent = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = state.languageTag == "zh-CN",
+                            onClick = { viewModel.setLanguage("zh-CN") },
+                            label = { Text(stringResource(R.string.settings_language_zh)) },
+                        )
+                        FilterChip(
+                            selected = state.languageTag == "en",
+                            onClick = { viewModel.setLanguage("en") },
+                            label = { Text(stringResource(R.string.settings_language_en)) },
+                        )
+                    }
+                },
+            )
             HorizontalDivider()
 
-            // 8. 崩溃上报：弹框选态，右侧显示当前选中的短文案
+            // 崩溃上报：弹框选态，右侧显示当前选中的短文案
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_crash_report)) },
                 supportingContent = {
@@ -292,7 +306,7 @@ fun SettingsRoute(
             )
             HorizontalDivider()
 
-            // 9. 加密附件密码：用于自动解压家里 AI 回传的加密 zip
+            // 加密附件密码：用于自动解压家里 AI 回传的加密 zip
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_zip_password)) },
                 supportingContent = {
@@ -314,7 +328,7 @@ fun SettingsRoute(
             )
             HorizontalDivider()
 
-            // 10. 命令模板：进入管理页 CRUD + 排序
+            // 命令模板：进入管理页 CRUD + 排序
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_command_templates)) },
                 supportingContent = {
@@ -332,7 +346,7 @@ fun SettingsRoute(
                 modifier = Modifier.clickable(onClick = onNavigateToTemplates),
             )
 
-            // 9. [DEBUG only] 触发一次测试崩溃：验证 CrashHandler 落盘与下次启动的上报流程。
+            // [DEBUG only] 触发一次测试崩溃：验证 CrashHandler 落盘与下次启动的上报流程。
             // Release 包 FLAG_DEBUGGABLE=0，此行自动消失。测完可整段删除。
             if (isDebuggable(context)) {
                 HorizontalDivider()
@@ -418,6 +432,18 @@ fun SettingsRoute(
             onLater = { showBatteryHintDialog = false },
         )
     }
+}
+
+/** 设置页分组标题：放在每组首条 ListItem 之前，用颜色 + 字号区别于正文，
+ * 来替代纯 Divider 平铺的压押感；内况留白与 Material 3 密度列表对齐。 */
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    )
 }
 
 /** 智能体 / 我：统一的身份列表项，点击弹窗编辑。未设置时副标题显示"未设置"。 */
