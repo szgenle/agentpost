@@ -11,6 +11,7 @@ import com.szgenle.agentpost.core.common.logging.RollingFileLogger
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.notification.NotificationController
 import com.szgenle.agentpost.sync.ForegroundSyncScheduler
+import com.szgenle.agentpost.sync.PushSyncController
 import com.szgenle.agentpost.sync.SyncMailWorker
 import java.io.File
 
@@ -37,6 +38,12 @@ class AgentPostApp : Application() {
         NotificationController.ensureChannel(this)
         SyncMailWorker.enqueuePeriodic(this)
         ForegroundSyncScheduler.install()
+        // 实时推送总控：订阅偏好开关，为 true 时拉起 PushSyncService。
+        // 默认 false，仅在用户主动开启后才出现前台服务 + IDLE 长连。
+        PushSyncController.install(this)
+        // 实时推送总控：订阅偏好开关。开关 false（默认）时不会拉起 Service，
+        // 用户在设置页打开后再让前台服务带着 IDLE 长连进驻。
+        PushSyncController.install(this)
         // 启动时整体清除加密 zip 解压产物：保证上次会话的明文残留不跨生命周期泄露。
         // 放在 Worker/前台轮询启动后，纯 IO 并不阻塞界面拉起。
         runCatching { File(cacheDir, "decrypted").deleteRecursively() }

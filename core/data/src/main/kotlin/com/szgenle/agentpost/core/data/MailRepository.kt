@@ -13,6 +13,7 @@ import com.szgenle.agentpost.core.database.dao.TaskMessageDao
 import com.szgenle.agentpost.core.datastore.AppPreferences
 import com.szgenle.agentpost.core.mail.MailCredentials
 import com.szgenle.agentpost.core.mail.MailFetcher
+import com.szgenle.agentpost.core.mail.MailPushSession
 import com.szgenle.agentpost.core.mail.MailSender
 import com.szgenle.agentpost.core.mail.OutgoingAttachment
 import com.szgenle.agentpost.core.mail.OutgoingMail
@@ -424,14 +425,32 @@ class MailRepository internal constructor(
         val incomings = fetcher.fetchNew(creds, sinceUid)
         if (incomings.isEmpty()) return@runCatching SyncResult(totalNew = 0, perTask = emptyList())
 
-        ensureUnclassifiedTask(self.id)
+        persistIncomings(incomings, selfId = self.id, agentId = agent.id, baselineUid = sinceUid)
+    }
+
+    /**
+     * 统一的“把新到达的 IncomingMail 落库 + 生成 [SyncResult]”逻辑。
+     *
+     * [syncInbox]（轮询）和 IDLE 推送共用。内部已处理：
+     *  - 通过 externalMessageId 去重
+     *  - 路由到已有 Task / 新线程 / 未归类
+     *  - lastSyncUid 推进（统一水线确保 IDLE 和 Worker 从同一位置追赶）
+     *  - taskDao.touch
+     */
+    internal suspend fun persistIncomings(
+        incomings: List<com.szgenle.agentpost.core.mail.IncomingMail>,
+        selfId: String,
+        agentId: String,
+        baselineUid: Long,
+    ): SyncResult {
+        if (incomings.isEmpty()) return SyncResult(totalNew = 0, perTask = emptyList())
+        ensureUnclassifiedTask(selfId)
         val router = TaskRouter(taskDao, messageDao)
-        // 保留插入顺序，同时便于按 taskId 累积
         val perTaskBuckets = linkedMapOf<String, MutableTaskSummary>()
         var inserted = 0
         for (mail in incomings) {
             if (messageDao.existsByExternalMessageId(mail.messageId)) continue
-            val targetTaskId = router.route(mail, agent.id)
+            val targetTaskId = router.route(mail, agentId)
             messageDao.upsert(
                 TaskMessage(
                     id = UUID.randomUUID().toString(),
@@ -462,7 +481,6 @@ class MailRepository internal constructor(
             }
             inserted++
 
-            // 统计通知摘要：按任务累积条数，并记下最新一条的预览
             val bucket = perTaskBuckets.getOrPut(targetTaskId) { MutableTaskSummary() }
             bucket.newCount += 1
             if (mail.sentAt >= bucket.latestSentAt) {
@@ -472,11 +490,10 @@ class MailRepository internal constructor(
             }
         }
         val newMaxUid = incomings.maxOf { it.imapUid }
-        if (newMaxUid > sinceUid) {
-            prefs.setLastSyncUid(self.id, newMaxUid)
+        if (newMaxUid > baselineUid) {
+            prefs.setLastSyncUid(selfId, newMaxUid)
         }
 
-        // 解析每个 bucket 的任务标题（未归类不给标题）
         val perTask = perTaskBuckets.map { (taskId, s) ->
             val title = if (taskId == SystemIds.UNCLASSIFIED_TASK_ID) {
                 ""
@@ -492,7 +509,37 @@ class MailRepository internal constructor(
                 latestSentAt = s.latestSentAt,
             )
         }
-        SyncResult(totalNew = inserted, perTask = perTask)
+        return SyncResult(totalNew = inserted, perTask = perTask)
+    }
+
+    /**
+     * 启动 IMAP IDLE 推送会话。由 PushSyncService 在后台长驻时调用。
+     *
+     * - SELF / AGENT 未配时返回 null（调用方需自己退出服务）
+     * - [onSynced] 回调每批成功入库的 [SyncResult]，Service 据此调 NotificationController
+     * - [onError] 回调 IDLE 主循环捕获的异常，服务侧只要打到日志即可，不做 UI 提示
+     */
+    suspend fun startInboxPush(
+        onSynced: suspend (SyncResult) -> Unit,
+        onError: (Throwable) -> Unit,
+    ): MailPushSession? {
+        val self = accountDao.getFirstByType(AccountType.SELF) ?: return null
+        val agent = accountDao.getFirstByType(AccountType.AGENT) ?: return null
+        if (!vault.contains(self.credentialKey) || self.imapHost.isBlank()) return null
+        val creds = self.toCredentials()
+        val sinceUid = prefs.getLastSyncUid(self.id)
+        return fetcher.startPush(
+            credentials = creds,
+            initialUid = sinceUid,
+            onIncoming = { incomings ->
+                runCatching {
+                    val baseline = prefs.getLastSyncUid(self.id)
+                    val result = persistIncomings(incomings, self.id, agent.id, baseline)
+                    if (result.totalNew > 0) onSynced(result)
+                }.onFailure { t -> AppLog.w(TAG, "push onIncoming persist failed", t) }
+            },
+            onError = onError,
+        )
     }
 
     private class MutableTaskSummary(

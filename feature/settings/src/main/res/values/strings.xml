@@ -51,6 +51,14 @@
     <string name="settings_row_fetch">收件收取</string>
     <string name="settings_row_notifications">允许通知</string>
     <string name="settings_row_background">允许后台运行</string>
+    <string name="settings_row_realtime">实时通知（实验）</string>
+    <string name="settings_row_realtime_desc">保持 IMAP 长连，秒级送达；耗电略增。关闭时维持 30 秒 + 15 分钟 双轨</string>
+    <!-- 电池优化软引导对话框 -->
+    <string name="settings_battery_hint_title">建议加入电池白名单</string>
+    <string name="settings_battery_hint_message">实时推送需要保持 IMAP 长连。若未将 AgentPost 加入电池白名单，系统省电策略可能在屏幕熄灭或长时间后台时断开长连，导致通知延迟。</string>
+    <string name="settings_battery_hint_go_settings">去系统设置</string>
+    <string name="settings_battery_hint_later">稍后</string>
+    <string name="settings_battery_hint_dont_show_again">不再提示</string>
     <string name="settings_row_crash_report">崩溃上报</string>
     <string name="settings_row_zip_password">加密附件密码</string>
 

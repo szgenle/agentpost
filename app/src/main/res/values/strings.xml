@@ -18,4 +18,15 @@
     <string name="crash_prompt_toast_sent">崩溃报告已发送。自发自收可能不进收件箱，请到「已发送」查看</string>
     <!-- %1$s = 失败原因（异常 message 或类名） -->
     <string name="crash_prompt_toast_failed">发送失败：%1$s</string>
+
+    <!-- 实时推送：前台服务常驻通知及电池优化引导 -->
+    <string name="push_channel_name">实时推送状态</string>
+    <string name="push_channel_description">开启实时通知后，显示长连运行状态的持续通知</string>
+    <string name="push_service_notification_title">实时监听新邮件</string>
+    <string name="push_service_notification_text">保持 IMAP 长连，新邮件秒级送达</string>
+    <string name="push_battery_dialog_title">建议加入电池白名单</string>
+    <string name="push_battery_dialog_message">实时推送需要保持 IMAP 长连。若未将 AgentPost 加入电池白名单，系统省电策略可能在屏幕熄灭或长时间后台时断开长连，导致通知延迟。</string>
+    <string name="push_battery_dialog_go_settings">去系统设置</string>
+    <string name="push_battery_dialog_later">稍后</string>
+    <string name="push_battery_dialog_dont_show_again">不再提示</string>
 </resources>

@@ -19,4 +19,15 @@
     <string name="crash_prompt_toast_sent">Crash report sent. Self-sent mail may skip the inbox — check \"Sent\" folder.</string>
     <!-- %1$s = failure reason (exception message or class name) -->
     <string name="crash_prompt_toast_failed">Send failed: %1$s</string>
+
+    <!-- Realtime push: foreground service ongoing notification and battery hint -->
+    <string name="push_channel_name">Realtime push status</string>
+    <string name="push_channel_description">Ongoing notification shown while the IMAP long connection is running</string>
+    <string name="push_service_notification_title">Listening for new mail</string>
+    <string name="push_service_notification_text">IMAP IDLE active, new mail in seconds</string>
+    <string name="push_battery_dialog_title">Allow unrestricted battery use?</string>
+    <string name="push_battery_dialog_message">Realtime push keeps an IMAP connection open. Without battery optimization exemption, the system may drop the connection when the screen is off or the app stays in the background, delaying notifications.</string>
+    <string name="push_battery_dialog_go_settings">Open settings</string>
+    <string name="push_battery_dialog_later">Later</string>
+    <string name="push_battery_dialog_dont_show_again">Don\'t show again</string>
 </resources>

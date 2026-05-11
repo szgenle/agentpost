@@ -27,6 +27,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -78,6 +79,7 @@ fun SettingsRoute(
     var showSelfDialog by remember { mutableStateOf(false) }
     var showCrashPrefDialog by remember { mutableStateOf(false) }
     var showZipPasswordDialog by remember { mutableStateOf(false) }
+    var showBatteryHintDialog by remember { mutableStateOf(false) }
 
     // 系统级权限状态：用户去系统设置授权后回来 ON_RESUME 重读一次
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -243,6 +245,32 @@ fun SettingsRoute(
             )
             HorizontalDivider()
 
+            // 7.5 实时通知（实验）：开关 ON 时拉起前台服务 + IMAP IDLE 长连
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_realtime)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(R.string.settings_row_realtime_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = state.realtimePush,
+                        onCheckedChange = { nextEnabled ->
+                            if (nextEnabled && !state.realtimeBatteryDialogShown &&
+                                !isIgnoringBatteryOptimizations(context)
+                            ) {
+                                // 首次开启且仍有电池限制 → 先弹软引导；开关仍然变为 ON。
+                                showBatteryHintDialog = true
+                            }
+                            viewModel.setRealtimePush(nextEnabled)
+                        },
+                    )
+                },
+            )
+            HorizontalDivider()
+
             // 8. 崩溃上报：弹框选态，右侧显示当前选中的短文案
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_row_crash_report)) },
@@ -353,6 +381,20 @@ fun SettingsRoute(
                 showZipPasswordDialog = false
             },
             onDismiss = { showZipPasswordDialog = false },
+        )
+    }
+    if (showBatteryHintDialog) {
+        BatteryOptimizationHintDialog(
+            onOpenSettings = {
+                viewModel.markBatteryDialogShown()
+                openBatteryOptimizationSettings(context)
+                showBatteryHintDialog = false
+            },
+            onDontShowAgain = {
+                viewModel.markBatteryDialogShown()
+                showBatteryHintDialog = false
+            },
+            onLater = { showBatteryHintDialog = false },
         )
     }
 }
@@ -591,6 +633,46 @@ private fun ZipPasswordDialog(
                 }
                 TextButton(onClick = onDismiss) {
                     Text(stringResource(CoreUiR.string.common_cancel))
+                }
+            }
+        },
+    )
+}
+
+/**
+ * 电池优化软引导弹框：
+ * - 仅在「实时通知」首次从 OFF→ON 且当前未加入电池白名单时由上层触发；
+ * - 三个动作：去系统设置 / 不再提示 / 稍后；
+ * - 「去系统设置」与「不再提示」都会落一次 realtimeBatteryDialogShown=true，避免下次重复打扰；
+ * - 「稍后」不落位，下次再开启仍会弹一次。
+ */
+@Composable
+private fun BatteryOptimizationHintDialog(
+    onOpenSettings: () -> Unit,
+    onDontShowAgain: () -> Unit,
+    onLater: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onLater,
+        title = { Text(stringResource(R.string.settings_battery_hint_title)) },
+        text = {
+            Text(
+                text = stringResource(R.string.settings_battery_hint_message),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onOpenSettings) {
+                Text(stringResource(R.string.settings_battery_hint_go_settings))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onDontShowAgain) {
+                    Text(stringResource(R.string.settings_battery_hint_dont_show_again))
+                }
+                TextButton(onClick = onLater) {
+                    Text(stringResource(R.string.settings_battery_hint_later))
                 }
             }
         },

@@ -41,6 +41,10 @@ data class SettingsUiState(
     val crashReportPref: CrashReportPref = CrashReportPref.ASK_EACH_TIME,
     /** 加密 zip 附件主密码是否已设置（仅显示状态，不回显明文）。 */
     val hasZipPassword: Boolean = false,
+    /** 实时推送开关。默认 false；开启时拉起 PushSyncService。 */
+    val realtimePush: Boolean = false,
+    /** 电池优化引导弹框是否已演示过。成员函数命名与 DataStore key 保持一致。 */
+    val realtimeBatteryDialogShown: Boolean = false,
 )
 
 class SettingsViewModel(
@@ -59,7 +63,12 @@ class SettingsViewModel(
     ) { self, agent, t, langTag, intervals ->
         Quint(self, agent, t, langTag, intervals)
     }.let { base ->
-        combine(base, prefs.observeCrashReportPref()) { b, crashPref ->
+        combine(
+            base,
+            prefs.observeCrashReportPref(),
+            prefs.observeRealtimePush(),
+            prefs.observeRealtimeBatteryDialogShown(),
+        ) { b, crashPref, push, batteryShown ->
             SettingsUiState(
                 self = b.self,
                 agent = b.agent,
@@ -69,6 +78,8 @@ class SettingsViewModel(
                 fetchIntervals = b.intervals,
                 crashReportPref = crashPref,
                 hasZipPassword = b.t.hasZipPassword,
+                realtimePush = push,
+                realtimeBatteryDialogShown = batteryShown,
             )
         }
     }.stateIn(
@@ -143,6 +154,16 @@ class SettingsViewModel(
         AppCompatDelegate.setApplicationLocales(
             LocaleListCompat.forLanguageTags(tag),
         )
+    }
+
+    /** 切换实时推送开关，创建引线由 Controller 持续听并拉起/停掉 PushSyncService。 */
+    fun setRealtimePush(enabled: Boolean) {
+        viewModelScope.launch { prefs.setRealtimePush(enabled) }
+    }
+
+    /** 电池优化引导已展示过：走设置 / 不再提示 均调此方法。 */
+    fun markBatteryDialogShown() {
+        viewModelScope.launch { prefs.setRealtimeBatteryDialogShown(true) }
     }
 
     /** 切换崩溃上报偏好（马上生效，下次启动 CrashReportPrompt 读新值）。 */

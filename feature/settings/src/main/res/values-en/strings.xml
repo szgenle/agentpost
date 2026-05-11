@@ -41,6 +41,14 @@
     <string name="settings_row_fetch">Fetch schedule</string>
     <string name="settings_row_notifications">Notifications</string>
     <string name="settings_row_background">Background execution</string>
+    <string name="settings_row_realtime">Realtime push (experimental)</string>
+    <string name="settings_row_realtime_desc">Keeps an IMAP long connection for instant delivery; slightly higher battery use. When off, falls back to 30s foreground + 15min worker.</string>
+    <!-- Battery optimization soft hint dialog -->
+    <string name="settings_battery_hint_title">Allow unrestricted battery use?</string>
+    <string name="settings_battery_hint_message">Realtime push keeps an IMAP connection open. Without battery optimization exemption, the system may drop the connection when the screen is off or the app stays in the background, delaying notifications.</string>
+    <string name="settings_battery_hint_go_settings">Open settings</string>
+    <string name="settings_battery_hint_later">Later</string>
+    <string name="settings_battery_hint_dont_show_again">Don\'t show again</string>
     <string name="settings_row_crash_report">Crash reports</string>
     <string name="settings_row_zip_password">Attachment decrypt password</string>
 

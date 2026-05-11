@@ -4,12 +4,14 @@ import com.szgenle.agentpost.core.mail.IncomingAttachment
 import com.szgenle.agentpost.core.mail.IncomingMail
 import com.szgenle.agentpost.core.mail.MailCredentials
 import com.szgenle.agentpost.core.mail.MailFetcher
+import com.szgenle.agentpost.core.mail.MailPushSession
 import org.eclipse.angus.mail.imap.IMAPFolder
 import jakarta.mail.Flags
 import jakarta.mail.Folder
 import jakarta.mail.Multipart
 import jakarta.mail.Part
 import jakarta.mail.Session
+import jakarta.mail.Store
 import jakarta.mail.internet.MimeMessage
 import jakarta.mail.search.FlagTerm
 import kotlinx.coroutines.Dispatchers
@@ -105,7 +107,26 @@ internal class JakartaMailFetcher : MailFetcher {
         }
     }
 
+    override fun startPush(
+        credentials: MailCredentials,
+        initialUid: Long,
+        onIncoming: suspend (List<IncomingMail>) -> Unit,
+        onError: (Throwable) -> Unit,
+    ): MailPushSession {
+        return JakartaMailPushSession(
+            fetcher = this,
+            credentials = credentials,
+            initialUid = initialUid,
+            onIncoming = onIncoming,
+            onError = onError,
+        ).also { it.start() }
+    }
+
     // ---------------- private ----------------
+
+    internal fun openStoreInternal(credentials: MailCredentials): Store = openStore(credentials).store
+
+    internal fun parseInternal(msg: MimeMessage, uid: Long): IncomingMail = parse(msg, uid)
 
     private fun openStore(credentials: MailCredentials): StoreHandle {
         val props = Properties().apply {

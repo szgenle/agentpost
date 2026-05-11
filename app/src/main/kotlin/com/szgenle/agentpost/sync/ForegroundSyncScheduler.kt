@@ -44,15 +44,22 @@ object ForegroundSyncScheduler : DefaultLifecycleObserver {
         job = scope.launch {
             AppLog.i(TAG, "foreground sync loop start")
             while (isActive) {
-                runCatching {
-                    AppServiceLocator.mailRepository.syncInbox()
-                }.onSuccess { result ->
-                    result.fold(
-                        onSuccess = { r -> if (r.totalNew > 0) AppLog.i(TAG, "fg sync new=${r.totalNew}") },
-                        onFailure = { e -> AppLog.w(TAG, "fg sync failed: ${e.message}", e) },
-                    )
-                }.onFailure { t ->
-                    AppLog.w(TAG, "fg sync unexpected", t)
+                // 实时推送开启时，IDLE 长连已负责秒级推送；
+                // 此处短路避免双拉。SyncMailWorker 仍继续管理 15min 兜底。
+                val realtimeOn = runCatching {
+                    AppServiceLocator.appPreferences.getRealtimePush()
+                }.getOrDefault(false)
+                if (!realtimeOn) {
+                    runCatching {
+                        AppServiceLocator.mailRepository.syncInbox()
+                    }.onSuccess { result ->
+                        result.fold(
+                            onSuccess = { r -> if (r.totalNew > 0) AppLog.i(TAG, "fg sync new=${r.totalNew}") },
+                            onFailure = { e -> AppLog.w(TAG, "fg sync failed: ${e.message}", e) },
+                        )
+                    }.onFailure { t ->
+                        AppLog.w(TAG, "fg sync unexpected", t)
+                    }
                 }
                 delay(INTERVAL_MS)
             }

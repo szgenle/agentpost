@@ -30,6 +30,8 @@ object NotificationController {
     const val EXTRA_DEEPLINK_TASK_ID = "deeplink_task_id"
 
     private const val CHANNEL_ID = "new_mail"
+    const val PUSH_CHANNEL_ID = "push_service"
+    const val PUSH_SERVICE_NOTIFICATION_ID = 1001
 
     /**
      * 按 [SyncResult] 逐 Task 发通知。`perTask` 为空直接返回。
@@ -99,15 +101,54 @@ object NotificationController {
      */
     fun ensureChannel(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        if (nm.getNotificationChannel(CHANNEL_ID) != null) return
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            context.getString(R.string.notification_channel_name),
-            NotificationManager.IMPORTANCE_DEFAULT,
-        ).apply {
-            description = context.getString(R.string.notification_channel_description)
+        if (nm.getNotificationChannel(CHANNEL_ID) == null) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                context.getString(R.string.notification_channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = context.getString(R.string.notification_channel_description)
+            }
+            nm.createNotificationChannel(channel)
         }
-        nm.createNotificationChannel(channel)
+        if (nm.getNotificationChannel(PUSH_CHANNEL_ID) == null) {
+            // 前台服务常驻通知不需要声音/震动，LOW 级别避免打扰用户。
+            val pushChannel = NotificationChannel(
+                PUSH_CHANNEL_ID,
+                context.getString(R.string.push_channel_name),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply {
+                description = context.getString(R.string.push_channel_description)
+                setShowBadge(false)
+            }
+            nm.createNotificationChannel(pushChannel)
+        }
+    }
+
+    /**
+     * 构造实时推送前台服务的常驻通知（供 [com.szgenle.agentpost.sync.PushSyncService] startForeground 使用）。
+     */
+    fun buildPushServiceNotification(context: Context): android.app.Notification {
+        ensureChannel(context)
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val pi = PendingIntent.getActivity(
+            context,
+            PUSH_SERVICE_NOTIFICATION_ID,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Builder(context, PUSH_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.stat_notify_sync)
+            .setContentTitle(context.getString(R.string.push_service_notification_title))
+            .setContentText(context.getString(R.string.push_service_notification_text))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setContentIntent(pi)
+            .build()
     }
 
     private fun hasPostPermission(context: Context): Boolean {

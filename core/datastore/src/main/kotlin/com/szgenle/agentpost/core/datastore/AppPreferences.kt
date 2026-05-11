@@ -3,6 +3,7 @@ package com.szgenle.agentpost.core.datastore
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -137,6 +138,33 @@ class AppPreferences(context: Context) {
         store.edit { it[CRASH_REPORT_PREF_KEY] = pref.name }
     }
 
+    // --- 实时推送（IMAP IDLE + Foreground Service）开关 ---
+    // 默认 false：保持现有 30s 前台轮询 + 15min WorkManager 后台双轨。
+    // 打开后：启动 PushSyncService 常驻、IDLE 长连接实时感知新邮件；
+    //        为避免双拉，ForegroundSyncScheduler 的 30s 循环会被短路。
+    fun observeRealtimePush(): Flow<Boolean> =
+        store.data.map { it[REALTIME_PUSH_KEY] ?: false }
+
+    suspend fun getRealtimePush(): Boolean = observeRealtimePush().first()
+
+    suspend fun setRealtimePush(enabled: Boolean) {
+        store.edit { it[REALTIME_PUSH_KEY] = enabled }
+    }
+
+    // 电池优化引导弹框的一次性标志：
+    // 用户在首次把「实时通知」切到 ON 时，如尚未加入电池白名单会弹一次引导框；
+    // 「去设置」或「不再提示」按钮都会写 true，避免反复打扰；「稍后」保持 false，
+    // 下次再次开启时仍会弹出。
+    fun observeRealtimeBatteryDialogShown(): Flow<Boolean> =
+        store.data.map { it[REALTIME_BATTERY_DIALOG_SHOWN_KEY] ?: false }
+
+    suspend fun getRealtimeBatteryDialogShown(): Boolean =
+        observeRealtimeBatteryDialogShown().first()
+
+    suspend fun setRealtimeBatteryDialogShown(shown: Boolean) {
+        store.edit { it[REALTIME_BATTERY_DIALOG_SHOWN_KEY] = shown }
+    }
+
     private companion object {
         val LANGUAGE_TAG_KEY = stringPreferencesKey("ui_language_tag")
         val FETCH_FG_SEC_KEY = intPreferencesKey("fetch_foreground_seconds")
@@ -144,6 +172,9 @@ class AppPreferences(context: Context) {
         val NEW_TASK_DRAFT_SUBJECT_KEY = stringPreferencesKey("new_task_draft_subject")
         val NEW_TASK_DRAFT_BODY_KEY = stringPreferencesKey("new_task_draft_body")
         val CRASH_REPORT_PREF_KEY = stringPreferencesKey("crash_report_pref")
+        val REALTIME_PUSH_KEY = booleanPreferencesKey("realtime_push_enabled")
+        val REALTIME_BATTERY_DIALOG_SHOWN_KEY =
+            booleanPreferencesKey("realtime_battery_dialog_shown")
 
         const val DEFAULT_FG_SEC = 60
         const val DEFAULT_BG_MIN = 15
