@@ -632,8 +632,14 @@ class MailRepository internal constructor(
 
     suspend fun getTask(taskId: String): Task? = taskDao.getById(taskId)
 
+    /**
+     * 未分类列表按时间倒序（最近的在最上面）。
+     * DAO 的 [TaskMessageDao.observeByTaskId] 为配合会话视图固定为 sentAt ASC，
+     * 这里在仓库层反转一次；未分类消息通常量级很小，无性能压力。
+     */
     fun observeUnclassifiedMessages(): Flow<List<TaskMessage>> =
         messageDao.observeByTaskId(SystemIds.UNCLASSIFIED_TASK_ID)
+            .map { it.asReversed() }
 
     fun observeUnreadCount(taskId: String): Flow<Int> = messageDao.observeUnreadCount(taskId)
 
