@@ -27,6 +27,12 @@
 - 🌍 **多语言**：简体中文 / English（per-app locale）
 - 🛡️ **端到端隐私**：凭据走 EncryptedSharedPreferences + Android Keystore；自建崩溃上报走你自己的 SELF 邮箱，不依赖任何三方分析平台
 
+## 📸 应用截图
+
+| 任务列表 | 任务详情 | 新建任务 | 设置界面 |
+|:---:|:---:|:---:|:---:|
+| ![任务列表](docs/screenshots/task-list.jpg) | ![任务详情](docs/screenshots/task-detail.jpg) | ![新建任务](docs/screenshots/new-task-zh.jpg) | ![设置界面](docs/screenshots/settings-zh.jpg) |
+
 ## 📱 使用场景
 
 - 家里跑着一个 AI 智能体（Claude Code / Cursor Agent / 自建 LLM 服务等，**技术栈无关，视为黑盒**）

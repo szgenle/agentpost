@@ -27,6 +27,14 @@
 - 🌍 **Multilingual**: Simplified Chinese / English (per-app locale)
 - 🛡️ **Privacy-first**: Credentials stored in `EncryptedSharedPreferences` + Android Keystore; self-built crash reporting routes through your own SELF mailbox — no third-party analytics platforms
 
+## 📸 Screenshots
+
+| Task List | Task Detail | New Task | Settings |
+|:---:|:---:|:---:|:---:|
+| ![Task List](docs/screenshots/task-list.jpg) | ![Task Detail](docs/screenshots/task-detail.jpg) | ![New Task](docs/screenshots/new-task-en.jpg) | ![Settings](docs/screenshots/settings-en.jpg) |
+
+> Task list and task detail screenshots contain Chinese user content (task titles and email bodies); the UI shell language (buttons, labels) can be switched to English independently.
+
 ## 📱 Use Cases
 
 - You run an AI agent at home (Claude Code / Cursor Agent / self-hosted LLM service, etc. — **tech stack agnostic, treated as a black box**)
