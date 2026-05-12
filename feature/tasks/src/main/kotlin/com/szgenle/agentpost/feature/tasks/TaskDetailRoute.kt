@@ -24,7 +24,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -57,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.szgenle.agentpost.core.data.SystemIds
 import com.szgenle.agentpost.core.model.Attachment
 import com.szgenle.agentpost.core.model.SendStatus
 import com.szgenle.agentpost.core.model.TaskMessage
@@ -80,6 +84,14 @@ fun TaskDetailRoute(
         val e = state.error ?: return@LaunchedEffect
         snackbarHostState.showSnackbar(e.asString(context))
         viewModel.consumeError()
+    }
+
+    // 归档成功 → 自动返回列表页。
+    LaunchedEffect(state.archivedEvent) {
+        if (state.archivedEvent) {
+            viewModel.consumeArchivedEvent()
+            onBack()
+        }
     }
 
     // 下载完成后由 ViewModel 丢出 pendingOpen，由此处就地 拉起系统 ACTION_VIEW 打开附件。
@@ -113,6 +125,34 @@ fun TaskDetailRoute(
                 navigationIcon = {
                     TextButton(onClick = onBack) {
                         Text(stringResource(CoreUiR.string.common_back))
+                    }
+                },
+                actions = {
+                    val task = state.task
+                    // 占位任务 / 已归档任务不暴露归档入口
+                    val canArchive = task != null &&
+                        task.id != SystemIds.UNCLASSIFIED_TASK_ID &&
+                        !task.archived
+                    if (canArchive) {
+                        var menuExpanded by remember { mutableStateOf(false) }
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Text(
+                                text = "⋮",
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.task_detail_menu_archive)) },
+                                onClick = {
+                                    menuExpanded = false
+                                    viewModel.archive()
+                                },
+                            )
+                        }
                     }
                 },
             )

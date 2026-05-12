@@ -50,6 +50,10 @@
     <string name="task_detail_reply_placeholder">回复…</string>
     <string name="task_detail_send_failed">发送失败</string>
 
+    <!-- 详情页顶栏 overflow 菜单 -->
+    <string name="task_detail_menu_archive">归档</string>
+    <string name="task_detail_archive_failed">归档失败</string>
+
     <!-- 气泡发送状态机 -->
     <string name="task_detail_status_sending">发送中…</string>
     <string name="task_detail_status_failed">发送失败</string>

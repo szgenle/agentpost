@@ -12,6 +12,7 @@ import com.szgenle.agentpost.core.common.zip.DecryptResult
 import com.szgenle.agentpost.core.common.zip.ZipDecryptor
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.data.MailRepository
+import com.szgenle.agentpost.core.data.SystemIds
 import com.szgenle.agentpost.core.datastore.AppPreferences
 import com.szgenle.agentpost.core.model.Attachment
 import com.szgenle.agentpost.core.model.Task
@@ -44,6 +45,8 @@ data class TaskDetailUiState(
     val pendingOpen: PendingOpen? = null,
     /** 加密 zip 需要用户手输密码时的提示态，null 表示无待确认。 */
     val zipPrompt: ZipPasswordPrompt? = null,
+    /** 归档成功后，UI 收到此信号需自动返回列表页。UI 消费后调 [TaskDetailViewModel.consumeArchivedEvent]。 */
+    val archivedEvent: Boolean = false,
     val error: UiText? = null,
 )
 
@@ -93,6 +96,7 @@ class TaskDetailViewModel(
             downloadingKeys = t.downloadingKeys,
             pendingOpen = t.pendingOpen,
             zipPrompt = t.zipPrompt,
+            archivedEvent = t.archivedEvent,
             error = t.error,
         )
     }.stateIn(
@@ -181,6 +185,34 @@ class TaskDetailViewModel(
 
     fun consumeError() {
         transient.value = transient.value.copy(error = null)
+    }
+
+    /**
+     * 归档当前任务。成功后发一次性 [TaskDetailUiState.archivedEvent]，UI 据此返回列表页。
+     * 占位任务（UNCLASSIFIED）/ 已归档任务在 UI 层隐藏菜单；此处再兜一道防御。
+     */
+    fun archive() {
+        val task = taskFlow.value ?: return
+        if (task.id == SystemIds.UNCLASSIFIED_TASK_ID || task.archived) return
+        viewModelScope.launch {
+            val r = runCatching { repo.archiveTask(task.id) }
+            transient.value = r.fold(
+                onSuccess = { transient.value.copy(archivedEvent = true) },
+                onFailure = { e ->
+                    val msg = e.message
+                    val uiText = if (!msg.isNullOrBlank()) {
+                        UiText.Dynamic(msg)
+                    } else {
+                        UiText.Resource(R.string.task_detail_archive_failed)
+                    }
+                    transient.value.copy(error = uiText)
+                },
+            )
+        }
+    }
+
+    fun consumeArchivedEvent() {
+        transient.value = transient.value.copy(archivedEvent = false)
     }
 
     /**
@@ -355,6 +387,7 @@ class TaskDetailViewModel(
         val downloadingKeys: Set<String> = emptySet(),
         val pendingOpen: PendingOpen? = null,
         val zipPrompt: ZipPasswordPrompt? = null,
+        val archivedEvent: Boolean = false,
         val error: UiText? = null,
     )
 
