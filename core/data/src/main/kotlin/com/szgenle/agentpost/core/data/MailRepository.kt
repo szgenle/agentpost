@@ -523,11 +523,23 @@ class MailRepository internal constructor(
         onSynced: suspend (SyncResult) -> Unit,
         onError: (Throwable) -> Unit,
     ): MailPushSession? {
-        val self = accountDao.getFirstByType(AccountType.SELF) ?: return null
-        val agent = accountDao.getFirstByType(AccountType.AGENT) ?: return null
-        if (!vault.contains(self.credentialKey) || self.imapHost.isBlank()) return null
+        val self = accountDao.getFirstByType(AccountType.SELF)
+        if (self == null) {
+            AppLog.w(TAG, "startInboxPush: SELF account missing")
+            return null
+        }
+        val agent = accountDao.getFirstByType(AccountType.AGENT)
+        if (agent == null) {
+            AppLog.w(TAG, "startInboxPush: AGENT account missing")
+            return null
+        }
+        if (!vault.contains(self.credentialKey) || self.imapHost.isBlank()) {
+            AppLog.w(TAG, "startInboxPush: SELF not ready, hasCred=${vault.contains(self.credentialKey)} imapHostBlank=${self.imapHost.isBlank()}")
+            return null
+        }
         val creds = self.toCredentials()
         val sinceUid = prefs.getLastSyncUid(self.id)
+        AppLog.d(TAG, "startInboxPush: self=${self.id} agent=${agent.id} sinceUid=$sinceUid imap=${creds.imapHost}:${creds.imapPort}")
         return fetcher.startPush(
             credentials = creds,
             initialUid = sinceUid,

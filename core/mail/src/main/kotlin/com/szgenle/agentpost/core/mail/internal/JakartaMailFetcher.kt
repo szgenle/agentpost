@@ -140,6 +140,10 @@ internal class JakartaMailFetcher : MailFetcher {
             put("mail.imaps.timeout", "30000")
             put("mail.imap.connectiontimeout", "15000")
             put("mail.imap.timeout", "30000")
+            // 开 TCP keep-alive，让 OS 层更早检测到 idle 长连被 NAT/MIUI 静默断开。
+            // Jakarta Mail 的 SO_KEEPALIVE 属性名，同时适配 imap 和 imaps。
+            put("mail.imap.socketKeepAlive", "true")
+            put("mail.imaps.socketKeepAlive", "true")
         }
         val session = Session.getInstance(props)
         val store = session.getStore(if (credentials.imapUseSsl) "imaps" else "imap")
