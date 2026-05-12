@@ -4,14 +4,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +28,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -57,11 +64,13 @@ import com.szgenle.agentpost.core.ui.R as CoreUiR
  *
  * @property briefs 已归档任务的卡片摘要，按 lastActivityAt 倒序
  * @property lastUnarchivedTitle 最近一次成功恢复的任务标题；UI 弹一次 Snackbar 后消费
+ * @property lastDeletedTitle 最近一次成功硬删除的任务标题；UI 弹一次 Snackbar 后消费
  * @property error 一次性错误文案
  */
 data class ArchivedTasksUiState(
     val briefs: List<TaskBrief> = emptyList(),
     val lastUnarchivedTitle: String? = null,
+    val lastDeletedTitle: String? = null,
     val error: UiText? = null,
 )
 
@@ -84,6 +93,7 @@ class ArchivedTasksViewModel(
         ArchivedTasksUiState(
             briefs = briefs,
             lastUnarchivedTitle = t.lastUnarchivedTitle,
+            lastDeletedTitle = t.lastDeletedTitle,
             error = t.error,
         )
     }.stateIn(
@@ -110,6 +120,28 @@ class ArchivedTasksViewModel(
         }
     }
 
+    /**
+     * 硬删除一个已归档任务。调用前应由 UI 弹过二次确认对话框；
+     * 这里不再拦截。成功时捕获任务标题用于 Snackbar 回显，失败走统一 error 通道。
+     */
+    fun deleteTask(brief: TaskBrief) {
+        viewModelScope.launch {
+            val r = runCatching { repo.deleteTask(brief.task.id) }
+            transient.value = r.fold(
+                onSuccess = { transient.value.copy(lastDeletedTitle = brief.task.title) },
+                onFailure = { e ->
+                    val msg = e.message
+                    val uiText = if (!msg.isNullOrBlank()) {
+                        UiText.Dynamic(msg)
+                    } else {
+                        UiText.Resource(R.string.archived_delete_failed)
+                    }
+                    transient.value.copy(error = uiText)
+                },
+            )
+        }
+    }
+
     fun consumeError() {
         transient.value = transient.value.copy(error = null)
     }
@@ -118,8 +150,13 @@ class ArchivedTasksViewModel(
         transient.value = transient.value.copy(lastUnarchivedTitle = null)
     }
 
+    fun consumeDeletedTitle() {
+        transient.value = transient.value.copy(lastDeletedTitle = null)
+    }
+
     private data class Transient(
         val lastUnarchivedTitle: String? = null,
+        val lastDeletedTitle: String? = null,
         val error: UiText? = null,
     )
 
@@ -153,6 +190,43 @@ fun ArchivedTasksRoute(
         val label = title.ifEmpty { untitled }
         snackbarHostState.showSnackbar(unarchivedFmt.format(label))
         viewModel.consumeUnarchivedTitle()
+    }
+
+    val deletedFmt = stringResource(R.string.archived_deleted_toast)
+    LaunchedEffect(state.lastDeletedTitle) {
+        val title = state.lastDeletedTitle ?: return@LaunchedEffect
+        val label = title.ifEmpty { untitled }
+        snackbarHostState.showSnackbar(deletedFmt.format(label))
+        viewModel.consumeDeletedTitle()
+    }
+
+    // 二次确认硬删除的对象；null 表示当前没有待确认的删除请求
+    var pendingDelete by remember { mutableStateOf<TaskBrief?>(null) }
+    pendingDelete?.let { target ->
+        val label = target.task.title.ifEmpty { untitled }
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(R.string.archived_delete_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(label, style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.archived_delete_confirm_message))
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteTask(target)
+                    pendingDelete = null
+                }) {
+                    Text(stringResource(R.string.archived_delete_confirm_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) {
+                    Text(stringResource(R.string.archived_delete_confirm_cancel))
+                }
+            },
+        )
     }
 
     val noMessages = stringResource(R.string.tasks_item_no_messages)
@@ -224,8 +298,36 @@ fun ArchivedTasksRoute(
                                 )
                             },
                             trailingContent = {
-                                TextButton(onClick = { viewModel.unarchive(brief) }) {
-                                    Text(stringResource(R.string.archived_action_unarchive))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    TextButton(onClick = { viewModel.unarchive(brief) }) {
+                                        Text(stringResource(R.string.archived_action_unarchive))
+                                    }
+                                    var menuExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        IconButton(onClick = { menuExpanded = true }) {
+                                            Text(
+                                                "⋮",
+                                                style = MaterialTheme.typography.titleLarge,
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = menuExpanded,
+                                            onDismissRequest = { menuExpanded = false },
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(stringResource(R.string.archived_menu_delete))
+                                                },
+                                                onClick = {
+                                                    menuExpanded = false
+                                                    pendingDelete = brief
+                                                },
+                                            )
+                                        }
+                                    }
                                 }
                             },
                             colors = ListItemDefaults.colors(

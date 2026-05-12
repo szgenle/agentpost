@@ -80,6 +80,13 @@ interface TaskMessageDao {
     suspend fun externalMessageIdsByTaskOrderBySentAtAsc(taskId: String): List<String>
 
     /**
+     * 取指定 Task 下所有消息的本地主键（UUID），仅用于硬删除前
+     * 批量清理对应的附件落盘目录：`filesDir/attachments/{messageLocalId}`。
+     */
+    @Query("SELECT id FROM task_messages WHERE taskId = :taskId")
+    suspend fun listLocalIdsByTask(taskId: String): List<String>
+
+    /**
      * 单步更新发送状态。
      *
      * - 发送开始：status=SENDING，externalMessageId/sendError 维持 null

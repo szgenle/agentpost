@@ -712,6 +712,34 @@ class MailRepository internal constructor(
         taskDao.setArchived(taskId, false)
     }
 
+    /**
+     * 硬删除任务（仅限本地：不动 IMAP/SMTP 服务器上的邮件）。
+     *
+     * 调用顺序：
+     *  1. 先拿到该任务下所有消息的本地 UUID，批量删除 `filesDir/attachments/{id}` 附件目录，
+     *     避免级联删 DB 后文件落盘变孤儿。
+     *  2. 再删 Task 行；task_messages 因 FK ON DELETE CASCADE 自动一起清。
+     *
+     * 拒绝作用在占位任务上（占位是整个未分类购物篮，不该被单点抹掊）。
+     */
+    suspend fun deleteTask(taskId: String) {
+        require(taskId != SystemIds.UNCLASSIFIED_TASK_ID) {
+            "Cannot delete unclassified placeholder"
+        }
+        val messageIds = messageDao.listLocalIdsByTask(taskId)
+        if (messageIds.isNotEmpty()) {
+            withContext(Dispatchers.IO) {
+                for (mid in messageIds) {
+                    val dir = File(appContext.filesDir, "attachments/$mid")
+                    if (dir.exists()) {
+                        runCatching { dir.deleteRecursively() }
+                    }
+                }
+            }
+        }
+        taskDao.deleteById(taskId)
+    }
+
     suspend fun markRead(localMessageId: String) = messageDao.markRead(localMessageId)
 
     suspend fun markTaskRead(taskId: String) = messageDao.markAllReadInTask(taskId)

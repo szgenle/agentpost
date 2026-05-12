@@ -32,6 +32,17 @@
     <string name="archived_unarchived_toast">Restored: %s</string>
     <string name="archived_unarchive_failed">Failed to unarchive</string>
 
+    <!-- Archived page hard-delete entry -->
+    <string name="archived_item_more_cd">More actions</string>
+    <string name="archived_menu_delete">Delete permanently</string>
+    <string name="archived_delete_confirm_title">Delete task permanently?</string>
+    <string name="archived_delete_confirm_message">This will remove the task, all its messages and local attachments. This cannot be undone. Original emails on the mail server are not affected.</string>
+    <string name="archived_delete_confirm_ok">Delete</string>
+    <string name="archived_delete_confirm_cancel">Cancel</string>
+    <!-- %s = deleted task title -->
+    <string name="archived_deleted_toast">Deleted task: %s</string>
+    <string name="archived_delete_failed">Failed to delete</string>
+
     <!-- Item preview, unread badge, sync error -->
     <string name="tasks_item_no_messages">(No messages yet)</string>
     <string name="tasks_sync_failed">Sync failed</string>

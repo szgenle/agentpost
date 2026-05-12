@@ -93,4 +93,12 @@ interface TaskDao {
 
     @Query("UPDATE tasks SET archived = :archived WHERE id = :id")
     suspend fun setArchived(id: String, archived: Boolean)
+
+    /**
+     * 硬删除任务。task_messages 对 tasks 设了 ON DELETE CASCADE，
+     * 子表消息会被 Room/SQLite 自动一并删除；附件文件落盘在 filesDir/attachments/
+     * 下，由仓库层在调用本方法之前单独清理，此处不负责文件系统。
+     */
+    @Query("DELETE FROM tasks WHERE id = :id")
+    suspend fun deleteById(id: String)
 }

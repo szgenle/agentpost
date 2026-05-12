@@ -32,6 +32,17 @@
     <string name="archived_unarchived_toast">已恢复：%s</string>
     <string name="archived_unarchive_failed">恢复失败</string>
 
+    <!-- 已归档页的硬删除入口 -->
+    <string name="archived_item_more_cd">更多操作</string>
+    <string name="archived_menu_delete">彻底删除</string>
+    <string name="archived_delete_confirm_title">彻底删除任务？</string>
+    <string name="archived_delete_confirm_message">将移除此任务及其全部消息与本地附件，操作不可恢复。邮箱上的原邮件不受影响。</string>
+    <string name="archived_delete_confirm_ok">删除</string>
+    <string name="archived_delete_confirm_cancel">取消</string>
+    <!-- %s = 已删除的任务标题 -->
+    <string name="archived_deleted_toast">已删除任务：%s</string>
+    <string name="archived_delete_failed">删除失败</string>
+
     <!-- 列表项摘要、未读角标、同步错误文案 -->
     <string name="tasks_item_no_messages">(暂无消息)</string>
     <string name="tasks_sync_failed">同步失败</string>
