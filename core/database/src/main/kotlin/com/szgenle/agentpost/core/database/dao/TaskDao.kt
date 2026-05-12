@@ -71,6 +71,23 @@ interface TaskDao {
     )
     fun observeActiveBriefs(): Flow<List<TaskBriefRow>>
 
+    /**
+     * 已归档任务摘要列表。仓库层会再过滤掉 `__UNCLASSIFIED__` 占位任务——
+     * 它本身也带 archived=1，不能泄露到归档页。
+     */
+    @Query(
+        """
+        SELECT t.*,
+          (SELECT body   FROM task_messages WHERE taskId = t.id ORDER BY sentAt DESC LIMIT 1) AS lastBody,
+          (SELECT sentAt FROM task_messages WHERE taskId = t.id ORDER BY sentAt DESC LIMIT 1) AS lastSentAt,
+          (SELECT COUNT(*) FROM task_messages WHERE taskId = t.id AND fromAgent = 1 AND isRead = 0) AS unreadCount
+        FROM tasks t
+        WHERE t.archived = 1
+        ORDER BY t.lastActivityAt DESC
+        """
+    )
+    fun observeArchivedBriefs(): Flow<List<TaskBriefRow>>
+
     @Query("UPDATE tasks SET lastActivityAt = :at WHERE id = :id")
     suspend fun touch(id: String, at: Long)
 

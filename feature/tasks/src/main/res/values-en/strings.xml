@@ -8,6 +8,20 @@
     <string name="tasks_empty_hint">Tap + to send the first email to your home AI</string>
     <string name="tasks_untitled">(untitled)</string>
 
+    <!-- Top bar overflow menu -->
+    <string name="tasks_action_overflow_cd">More</string>
+    <string name="tasks_menu_archived">Archived</string>
+    <string name="tasks_menu_settings">Settings</string>
+
+    <!-- Archived tasks page -->
+    <string name="archived_title">Archived</string>
+    <string name="archived_empty_title">No archived tasks</string>
+    <string name="archived_empty_hint">Archived tasks appear here and can be restored anytime</string>
+    <string name="archived_action_unarchive">Unarchive</string>
+    <!-- %s = restored task title -->
+    <string name="archived_unarchived_toast">Restored: %s</string>
+    <string name="archived_unarchive_failed">Failed to unarchive</string>
+
     <!-- Item preview, unread badge, sync error -->
     <string name="tasks_item_no_messages">(No messages yet)</string>
     <string name="tasks_sync_failed">Sync failed</string>

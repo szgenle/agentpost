@@ -674,6 +674,44 @@ class MailRepository internal constructor(
                 .toList()
         }
 
+    /**
+     * 归档页用：已归档任务的卡片摘要。显式过滤掉 `__UNCLASSIFIED__` 占位任务——
+     * 占位任务 archived=true 但并不属于用户视角的"已归档任务"。
+     */
+    fun observeArchivedTaskBriefs(): Flow<List<TaskBrief>> =
+        taskDao.observeArchivedBriefs().map { rows ->
+            rows.asSequence()
+                .filter { it.task.id != SystemIds.UNCLASSIFIED_TASK_ID }
+                .map { row ->
+                    TaskBrief(
+                        task = row.task,
+                        lastMessagePreview = previewOf(row.lastBody ?: "", limit = 60),
+                        lastMessageAt = row.lastSentAt ?: row.task.lastActivityAt,
+                        unreadCount = row.unreadCount,
+                    )
+                }
+                .toList()
+        }
+
+    /**
+     * 归档任务（软操作，不动 IMAP 服务器上的邮件）。
+     * 拒绝归档占位任务。
+     */
+    suspend fun archiveTask(taskId: String) {
+        require(taskId != SystemIds.UNCLASSIFIED_TASK_ID) {
+            "Cannot archive unclassified placeholder"
+        }
+        taskDao.setArchived(taskId, true)
+    }
+
+    /** 恢复已归档任务。拒绝作用在占位任务上。 */
+    suspend fun unarchiveTask(taskId: String) {
+        require(taskId != SystemIds.UNCLASSIFIED_TASK_ID) {
+            "Cannot unarchive unclassified placeholder"
+        }
+        taskDao.setArchived(taskId, false)
+    }
+
     suspend fun markRead(localMessageId: String) = messageDao.markRead(localMessageId)
 
     suspend fun markTaskRead(taskId: String) = messageDao.markAllReadInTask(taskId)

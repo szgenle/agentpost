@@ -25,6 +25,7 @@ import com.szgenle.agentpost.feature.settings.CommandTemplatesRoute
 import com.szgenle.agentpost.feature.settings.FetchIntervalRoute
 import com.szgenle.agentpost.feature.settings.MailSetupRoute
 import com.szgenle.agentpost.feature.settings.SettingsRoute
+import com.szgenle.agentpost.feature.tasks.ArchivedTasksRoute
 import com.szgenle.agentpost.feature.tasks.TASK_ID_ARG
 import com.szgenle.agentpost.feature.tasks.TaskDetailRoute
 import com.szgenle.agentpost.feature.tasks.TasksRoute
@@ -87,6 +88,7 @@ private fun Intent.readDeepLinkTaskId(): String? =
  */
 private object Routes {
     const val TASKS = "tasks"
+    const val TASKS_ARCHIVED = "tasks/archived"
     const val NEW_TASK = "newtask"
     const val UNCLASSIFIED = "unclassified"
     const val SETTINGS = "settings"
@@ -119,6 +121,13 @@ fun AgentPostNavHost(pendingDeepLinkTaskId: MutableState<String?>) {
                 onOpenNewTask = { navController.navigate(Routes.NEW_TASK) },
                 onOpenTask = { taskId -> navController.navigate(Routes.taskDetail(taskId)) },
                 onOpenUnclassified = { navController.navigate(Routes.UNCLASSIFIED) },
+                onOpenArchived = { navController.navigate(Routes.TASKS_ARCHIVED) },
+            )
+        }
+        composable(Routes.TASKS_ARCHIVED) {
+            ArchivedTasksRoute(
+                onBack = { navController.popBackStack() },
+                onOpenTask = { taskId -> navController.navigate(Routes.taskDetail(taskId)) },
             )
         }
         composable(Routes.UNCLASSIFIED) {

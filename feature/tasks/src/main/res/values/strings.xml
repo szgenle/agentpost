@@ -8,6 +8,20 @@
     <string name="tasks_empty_hint">点右下角 + 发第一封邮件给家里的 AI</string>
     <string name="tasks_untitled">(无标题)</string>
 
+    <!-- 顶栏 overflow 菜单 -->
+    <string name="tasks_action_overflow_cd">更多</string>
+    <string name="tasks_menu_archived">已归档</string>
+    <string name="tasks_menu_settings">设置</string>
+
+    <!-- 已归档任务页 -->
+    <string name="archived_title">已归档</string>
+    <string name="archived_empty_title">暂无归档任务</string>
+    <string name="archived_empty_hint">任务归档后会出现在这里，可随时恢复</string>
+    <string name="archived_action_unarchive">恢复</string>
+    <!-- %s = 已恢复的任务标题 -->
+    <string name="archived_unarchived_toast">已恢复：%s</string>
+    <string name="archived_unarchive_failed">恢复失败</string>
+
     <!-- 列表项摘要、未读角标、同步错误文案 -->
     <string name="tasks_item_no_messages">(暂无消息)</string>
     <string name="tasks_sync_failed">同步失败</string>
