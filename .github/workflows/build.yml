@@ -11,6 +11,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 提前 opt-in Node.js 24（GitHub 将于 2026-06-02 起强制默认）。
+# 现有 v4 系列 action 已支持 Node 24，无需升级版本即可消除 deprecation warning。
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     name: assembleDebug + unit tests
