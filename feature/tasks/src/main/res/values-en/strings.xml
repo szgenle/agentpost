@@ -13,6 +13,16 @@
     <string name="tasks_menu_archived">Archived</string>
     <string name="tasks_menu_settings">Settings</string>
 
+    <!-- Home long-press selection mode (bulk archive) -->
+    <!-- %1$d = selected task count -->
+    <string name="tasks_selection_title_count">%1$d selected</string>
+    <string name="tasks_selection_clear_cd">Exit selection</string>
+    <string name="tasks_selection_action_select_all">Select all</string>
+    <string name="tasks_selection_action_archive">Archive</string>
+    <!-- %1$d = number of tasks archived in this batch -->
+    <string name="tasks_archived_toast">Archived %1$d task(s)</string>
+    <string name="tasks_archive_failed">Archive failed</string>
+
     <!-- Archived tasks page -->
     <string name="archived_title">Archived</string>
     <string name="archived_empty_title">No archived tasks</string>

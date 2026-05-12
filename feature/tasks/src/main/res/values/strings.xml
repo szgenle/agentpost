@@ -13,6 +13,16 @@
     <string name="tasks_menu_archived">已归档</string>
     <string name="tasks_menu_settings">设置</string>
 
+    <!-- 首页长按进入的选择模式（批量归档） -->
+    <!-- %1$d = 已选中的任务数 -->
+    <string name="tasks_selection_title_count">已选择 %1$d 项</string>
+    <string name="tasks_selection_clear_cd">退出选择</string>
+    <string name="tasks_selection_action_select_all">全选</string>
+    <string name="tasks_selection_action_archive">归档</string>
+    <!-- %1$d = 本次成功归档的任务数 -->
+    <string name="tasks_archived_toast">已归档 %1$d 个任务</string>
+    <string name="tasks_archive_failed">归档失败</string>
+
     <!-- 已归档任务页 -->
     <string name="archived_title">已归档</string>
     <string name="archived_empty_title">暂无归档任务</string>
