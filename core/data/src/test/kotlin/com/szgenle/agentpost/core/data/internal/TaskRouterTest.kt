@@ -354,8 +354,10 @@ private class FakeTaskDao(
     override fun observeActive(): Flow<List<Task>> = error("unused by TaskRouter")
     override fun observeAll(): Flow<List<Task>> = error("unused by TaskRouter")
     override fun observeActiveBriefs(): Flow<List<TaskBriefRow>> = error("unused by TaskRouter")
+    override fun observeArchivedBriefs(): Flow<List<TaskBriefRow>> = error("unused by TaskRouter")
     override suspend fun touch(id: String, at: Long) = error("unused by TaskRouter")
     override suspend fun setArchived(id: String, archived: Boolean) = error("unused by TaskRouter")
+    override suspend fun deleteById(id: String) = error("unused by TaskRouter")
 }
 
 private class FakeTaskMessageDao(
@@ -384,6 +386,8 @@ private class FakeTaskMessageDao(
     override suspend fun markRead(id: String) = error("unused by TaskRouter")
     override suspend fun markAllReadInTask(taskId: String) = error("unused by TaskRouter")
     override suspend fun externalMessageIdsByTaskOrderBySentAtAsc(taskId: String): List<String> =
+        error("unused by TaskRouter")
+    override suspend fun listLocalIdsByTask(taskId: String): List<String> =
         error("unused by TaskRouter")
     override suspend fun updateSendStatus(
         id: String,
