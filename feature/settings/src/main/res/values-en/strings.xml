@@ -6,7 +6,8 @@
     <!-- Settings group headers -->
     <string name="settings_group_mailbox">Mailbox</string>
     <string name="settings_group_notifications">Notifications &amp; push</string>
-    <string name="settings_group_others">Other</string>
+    <string name="settings_group_mail_processing">Mail processing</string>
+    <string name="settings_group_app">App</string>
 
     <string name="settings_self_section">SELF (your mailbox)</string>
     <string name="settings_agent_section">AGENT (home AI mailbox)</string>

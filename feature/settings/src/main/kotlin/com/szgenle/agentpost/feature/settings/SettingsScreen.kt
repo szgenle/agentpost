@@ -276,48 +276,9 @@ fun SettingsRoute(
                 },
             )
 
-            // ============ 第 3 组：其它 ============
-            // 与主线关系较弱的通用选项：语言、崩溃上报、附件密码、命令模板。
-            SectionHeader(stringResource(R.string.settings_group_others))
-
-            // 语言行：右侧直接放两颗 FilterChip 原地切换
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_row_language)) },
-                trailingContent = {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = state.languageTag == "zh-CN",
-                            onClick = { viewModel.setLanguage("zh-CN") },
-                            label = { Text(stringResource(R.string.settings_language_zh)) },
-                        )
-                        FilterChip(
-                            selected = state.languageTag == "en",
-                            onClick = { viewModel.setLanguage("en") },
-                            label = { Text(stringResource(R.string.settings_language_en)) },
-                        )
-                    }
-                },
-            )
-            HorizontalDivider()
-
-            // 崩溃上报：弹框选态，右侧显示当前选中的短文案
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_row_crash_report)) },
-                supportingContent = {
-                    Text(
-                        text = stringResource(crashPrefShortRes(state.crashReportPref)),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                },
-                trailingContent = {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = null,
-                    )
-                },
-                modifier = Modifier.clickable { showCrashPrefDialog = true },
-            )
-            HorizontalDivider()
+            // ============ 第 3 组：邮件处理 ============
+            // 与邮件内容产出/解析直接相关的业务配置：附件解密密码、命令模板。
+            SectionHeader(stringResource(R.string.settings_group_mail_processing))
 
             // 加密附件密码：用于自动解压家里 AI 回传的加密 zip
             ListItem(
@@ -358,6 +319,29 @@ fun SettingsRoute(
                 },
                 modifier = Modifier.clickable(onClick = onNavigateToTemplates),
             )
+
+            // ============ 第 4 组：应用 ============
+            // 与具体业务无关的应用级设置：语言、配置导入导出、崩溃上报。
+            SectionHeader(stringResource(R.string.settings_group_app))
+
+            // 语言行：右侧直接放两颗 FilterChip 原地切换
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_language)) },
+                trailingContent = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = state.languageTag == "zh-CN",
+                            onClick = { viewModel.setLanguage("zh-CN") },
+                            label = { Text(stringResource(R.string.settings_language_zh)) },
+                        )
+                        FilterChip(
+                            selected = state.languageTag == "en",
+                            onClick = { viewModel.setLanguage("en") },
+                            label = { Text(stringResource(R.string.settings_language_en)) },
+                        )
+                    }
+                },
+            )
             HorizontalDivider()
 
             // 配置导入/导出：二级页，内部备 SAF 与合并策略对话框
@@ -376,6 +360,25 @@ fun SettingsRoute(
                     )
                 },
                 modifier = Modifier.clickable(onClick = onNavigateToConfigIo),
+            )
+            HorizontalDivider()
+
+            // 崩溃上报：弹框选态，右侧显示当前选中的短文案
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_crash_report)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(crashPrefShortRes(state.crashReportPref)),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable { showCrashPrefDialog = true },
             )
         }
     }

@@ -5,7 +5,8 @@
     <!-- 设置分组标题：用于在列表中把条目按主题聚拢，避免所有项挤在一起。 -->
     <string name="settings_group_mailbox">邮箱</string>
     <string name="settings_group_notifications">通知与推送</string>
-    <string name="settings_group_others">其它</string>
+    <string name="settings_group_mail_processing">邮件处理</string>
+    <string name="settings_group_app">应用</string>
 
     <!-- SELF -->
     <string name="settings_self_section">SELF（我的邮箱）</string>
