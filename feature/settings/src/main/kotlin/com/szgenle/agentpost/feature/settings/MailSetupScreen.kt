@@ -158,8 +158,14 @@ private fun MailSetupForm(
         value = password,
         onValueChange = { password = it },
         label = { Text(stringResource(R.string.settings_password)) },
-        // 密码框不用 placeholder——留空即真空，避免用 "••••••••" 占位符
-        // 误导用户以为已输入。"留空=不改"的语义由 ViewModel 保证。
+        // 已存过密码时用 6 个星号 placeholder 提示"已有密码"，
+        // 仅做视觉占位，value 仍为空——"留空=不改"的语义由 ViewModel 保证，
+        // 不会把星号当成新密码覆盖 Vault 中的真实凭据。
+        placeholder = if (hasExistingPassword) {
+            { Text("******") }
+        } else {
+            null
+        },
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
