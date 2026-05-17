@@ -65,6 +65,14 @@ fun SettingsRoute(
     onOpenMail: () -> Unit,
     onOpenFetch: () -> Unit,
     onNavigateToTemplates: () -> Unit,
+    onNavigateToConfigIo: () -> Unit,
+    /**
+     * 路由层传入的一次性引导信号：ConfigIoRoute 在「未设主密码」时
+     * popBack 回本页后会将该参数传 true，本页本次进入时自动展开
+     * Zip 密码弹框。读取后需由调用方自行重置为 false（防重复弹出）。
+     */
+    autoOpenZipPassword: Boolean = false,
+    onConsumeAutoOpenZipPassword: () -> Unit = {},
     viewModel: SettingsViewModel = viewModel(factory = SettingsViewModel.Factory),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -82,6 +90,15 @@ fun SettingsRoute(
     var showCrashPrefDialog by remember { mutableStateOf(false) }
     var showZipPasswordDialog by remember { mutableStateOf(false) }
     var showBatteryHintDialog by remember { mutableStateOf(false) }
+
+    // ConfigIoRoute 在未设主密码时会带一次性信号跳回本页，
+    // 这里读到 true 后自动展开「加密附件密码」弹框，同时请调用方复位。
+    LaunchedEffect(autoOpenZipPassword) {
+        if (autoOpenZipPassword) {
+            showZipPasswordDialog = true
+            onConsumeAutoOpenZipPassword()
+        }
+    }
 
     // 系统级权限状态：用户去系统设置授权后回来 ON_RESUME 重读一次
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -340,6 +357,25 @@ fun SettingsRoute(
                     )
                 },
                 modifier = Modifier.clickable(onClick = onNavigateToTemplates),
+            )
+            HorizontalDivider()
+
+            // 配置导入/导出：二级页，内部备 SAF 与合并策略对话框
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_config_io)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(R.string.settings_row_config_io_desc),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable(onClick = onNavigateToConfigIo),
             )
         }
     }

@@ -123,4 +123,62 @@
     <string name="settings_zip_password_dialog_desc">打开加密 zip 附件时会先用此密码自动试解；失败时会提示手输。</string>
     <string name="settings_zip_password_hint">主密码</string>
     <string name="settings_zip_password_clear">清除</string>
+
+    <!-- ====== 配置导入/导出（二级页） ====== -->
+    <string name="settings_row_config_io">配置导入/导出</string>
+    <string name="settings_row_config_io_desc">把当前身份、命令模板等打包成加密 ZIP，方便换机或备份</string>
+    <string name="settings_config_io_title">配置导入/导出</string>
+    <string name="settings_config_io_intro">导出会包含「我」「智能体」的身份、IMAP/SMTP 设置（不含密码）、命令模板、收件间隔、崩溃上报偏好。邮箱密码与加密附件密码本身不会被导出。ZIP 使用「设置」中的「加密附件密码」加密。</string>
+    <string name="settings_config_io_section_export">导出</string>
+    <string name="settings_config_io_section_import">导入</string>
+    <string name="settings_config_io_export_row">导出到加密 ZIP</string>
+    <string name="settings_config_io_export_desc">选择保存位置后会写入一个加密 ZIP，文件名带时间戳</string>
+    <string name="settings_config_io_import_row">从加密 ZIP 导入</string>
+    <string name="settings_config_io_import_desc">选择文件后下一步会让你确认合并策略</string>
+    <string name="settings_config_io_busy">正在处理…</string>
+
+    <!-- 缺主密码的引导：未设密码时回到设置页并自动展开「加密附件密码」弹框 -->
+    <string name="settings_config_io_need_zip_password">请先设置「加密附件密码」</string>
+
+    <!-- 合并策略对话框 -->
+    <string name="settings_config_io_strategy_title">如何合并？</string>
+    <string name="settings_config_io_strategy_overwrite">覆盖</string>
+    <string name="settings_config_io_strategy_overwrite_desc">同名账户/模板按导入文件覆盖；偏好（间隔、崩溃上报）也覆盖。邮箱密码不动。</string>
+    <string name="settings_config_io_strategy_merge">仅新增</string>
+    <string name="settings_config_io_strategy_merge_desc">仅写入本机不存在的账户和模板；偏好不动。</string>
+    <string name="settings_config_io_strategy_skip">跳过已有</string>
+    <string name="settings_config_io_strategy_skip_desc">遇到本机已有同 type 账户或同 (标题, 主题) 模板时跳过；偏好不动。</string>
+    <!-- %1$d 待写入账户 / %2$d 总账户 / %3$d 待写入模板 / %4$d 总模板 -->
+    <string name="settings_config_io_strategy_summary_fmt">本次将写入 %1$d/%2$d 个账户、%3$d/%4$d 个模板</string>
+    <string name="settings_config_io_strategy_no_change">当前策略下不会写入任何条目。如需用该文件覆盖本地现有配置，请改选「覆盖现有」。</string>
+    <string name="settings_config_io_strategy_confirm">确认导入</string>
+
+    <!-- 通用单按钮信息框 -->
+    <string name="settings_config_io_ok">知道了</string>
+
+    <!-- 错误对话框 -->
+    <string name="settings_config_io_wrong_pw_title">密码错误</string>
+    <string name="settings_config_io_wrong_pw_body">该 ZIP 无法用当前「加密附件密码」解开。请确认导出端使用的是相同的主密码。</string>
+    <string name="settings_config_io_malformed_title">文件无法解析</string>
+    <!-- %1$s 错误细节 -->
+    <string name="settings_config_io_malformed_body">导入文件格式不正确：%1$s</string>
+    <string name="settings_config_io_version_title">版本不兼容</string>
+    <!-- %1$d 文件中的版本号 -->
+    <string name="settings_config_io_version_body">该配置文件版本（v%1$d）高于当前版本能识别的范围，请升级 App 后再试。</string>
+    <string name="settings_config_io_failure_title">操作失败</string>
+    <!-- %1$s 错误细节 -->
+    <string name="settings_config_io_failure_body">出现未知错误：%1$s</string>
+
+    <!-- Snackbar 文案 -->
+    <string name="settings_config_io_msg_export_ok">已导出</string>
+    <!-- %1$d 写入账户数 / %2$d 写入模板数 -->
+    <string name="settings_config_io_msg_import_ok">导入完成：%1$d 个账户，%2$d 个模板</string>
+    <string name="settings_config_io_msg_weak_password">提示：当前主密码长度不足 8 位，建议使用更长密码。</string>
+    
+        <!-- inline 主密码补填引导框 -->
+        <string name="settings_config_io_inline_pw_title">需要主密码</string>
+        <string name="settings_config_io_inline_pw_desc_export">本次导出需要主密码加密 ZIP。请输入主密码，保存后会自动继续本次导出。</string>
+        <string name="settings_config_io_inline_pw_desc_import">本次导入需要主密码解密 ZIP。请输入当初导出时使用的主密码，保存后会自动继续本次导入。</string>
+        <string name="settings_config_io_inline_pw_confirm_export">保存并导出</string>
+        <string name="settings_config_io_inline_pw_confirm_import">保存并导入</string>
 </resources>

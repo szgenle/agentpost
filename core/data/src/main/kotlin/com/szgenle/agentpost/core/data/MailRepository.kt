@@ -202,6 +202,47 @@ class MailRepository internal constructor(
         )
     }
 
+    /**
+     * 配置导入专用：覆盖 SELF 的非密码字段；password / credentialKey 一律保持现状。
+     *
+     * - SELF 已存在：沿用旧 id / credentialKey / createdAt，仅替换 displayName / email
+     *   与 IMAP/SMTP 参数。Vault 中既有的密码不会被触动，可继续收发邮件。
+     * - SELF 不存在：新建一条记录并分配新 credentialKey；密码缺失，由用户在
+     *   "邮箱设置"补填。
+     *
+     * 与 [saveSelfAccount] 的区别：本方法不依赖密码、不写 Vault，专为导入恢复使用。
+     */
+    suspend fun applyImportedSelfAccount(
+        displayName: String,
+        email: String,
+        imapHost: String,
+        imapPort: Int,
+        imapUseSsl: Boolean,
+        smtpHost: String,
+        smtpPort: Int,
+        smtpUseStartTls: Boolean,
+    ) {
+        val existing = accountDao.getFirstByType(AccountType.SELF)
+        val id = existing?.id ?: UUID.randomUUID().toString()
+        val credentialKey = existing?.credentialKey ?: "self_$id"
+        accountDao.upsert(
+            Account(
+                id = id,
+                type = AccountType.SELF,
+                displayName = displayName,
+                email = email,
+                imapHost = imapHost,
+                imapPort = imapPort,
+                imapUseSsl = imapUseSsl,
+                smtpHost = smtpHost,
+                smtpPort = smtpPort,
+                smtpUseStartTls = smtpUseStartTls,
+                credentialKey = credentialKey,
+                createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+            )
+        )
+    }
+
     // ============================================================
     // 发送
     // ============================================================

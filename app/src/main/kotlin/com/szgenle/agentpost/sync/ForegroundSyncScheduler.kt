@@ -50,15 +50,21 @@ object ForegroundSyncScheduler : DefaultLifecycleObserver {
                     AppServiceLocator.appPreferences.getRealtimePush()
                 }.getOrDefault(false)
                 if (!realtimeOn) {
-                    runCatching {
-                        AppServiceLocator.mailRepository.syncInbox()
-                    }.onSuccess { result ->
-                        result.fold(
-                            onSuccess = { r -> if (r.totalNew > 0) AppLog.i(TAG, "fg sync new=${r.totalNew}") },
-                            onFailure = { e -> AppLog.w(TAG, "fg sync failed: ${e.message}", e) },
-                        )
-                    }.onFailure { t ->
-                        AppLog.w(TAG, "fg sync unexpected", t)
+                    // 未配置 SELF 邮箱时直接跳过本轮：避免每 30 秒打一条带堆栈的 warning。
+                    val hasSelf = runCatching {
+                        AppServiceLocator.mailRepository.getSelfAccount() != null
+                    }.getOrDefault(false)
+                    if (hasSelf) {
+                        runCatching {
+                            AppServiceLocator.mailRepository.syncInbox()
+                        }.onSuccess { result ->
+                            result.fold(
+                                onSuccess = { r -> if (r.totalNew > 0) AppLog.i(TAG, "fg sync new=${r.totalNew}") },
+                                onFailure = { e -> AppLog.w(TAG, "fg sync failed: ${e.message}", e) },
+                            )
+                        }.onFailure { t ->
+                            AppLog.w(TAG, "fg sync unexpected", t)
+                        }
                     }
                 }
                 delay(INTERVAL_MS)

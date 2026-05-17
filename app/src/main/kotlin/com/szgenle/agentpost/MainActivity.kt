@@ -14,6 +14,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,6 +27,7 @@ import com.szgenle.agentpost.feature.settings.CommandTemplatesRoute
 import com.szgenle.agentpost.feature.settings.FetchIntervalRoute
 import com.szgenle.agentpost.feature.settings.MailSetupRoute
 import com.szgenle.agentpost.feature.settings.SettingsRoute
+import com.szgenle.agentpost.feature.settings.configio.ConfigIoRoute
 import com.szgenle.agentpost.feature.tasks.ArchivedTasksRoute
 import com.szgenle.agentpost.feature.tasks.TASK_ID_ARG
 import com.szgenle.agentpost.feature.tasks.TaskDetailRoute
@@ -95,6 +98,12 @@ private object Routes {
     const val SETTINGS_MAIL = "settings/mail"
     const val SETTINGS_FETCH = "settings/fetch"
     const val SETTINGS_TEMPLATES = "settings/templates"
+    const val SETTINGS_CONFIG_IO = "settings/config-io"
+    /**
+     * 「未设主密码」引导信号的 savedStateHandle key。
+     * ConfigIoRoute popBack 后会在上一个栈项（SettingsRoute）上设 true。
+     */
+    const val ARG_AUTO_OPEN_ZIP_PASSWORD = "auto_open_zip_password"
     const val TASK_DETAIL = "task/{$TASK_ID_ARG}"
     fun taskDetail(taskId: String) = "task/$taskId"
 }
@@ -102,6 +111,16 @@ private object Routes {
 @Composable
 fun AgentPostNavHost(pendingDeepLinkTaskId: MutableState<String?>) {
     val navController = rememberNavController()
+
+    // 快速连点返回导致后续点击落在已不在栈顶的 entry 上，
+    // popBackStack 多 pop 一层会让 NavHost 渲染状态与栈状态不同步，表现为白屏。
+    // 所以只在当前 entry 的 lifecycle 处于 RESUMED 时才让返回生效，
+    // 处于转场中的点击一律忽略（debounce by lifecycle）。
+    val safeBack: () -> Unit = {
+        if (navController.currentBackStackEntry?.lifecycleIsResumed() == true) {
+            navController.popBackStack()
+        }
+    }
 
     // 深链导航：有 pending 值时跳到详情页并清空（支持冷启动 & 进程存活两种场景）
     LaunchedEffect(pendingDeepLinkTaskId.value) {
@@ -126,41 +145,76 @@ fun AgentPostNavHost(pendingDeepLinkTaskId: MutableState<String?>) {
         }
         composable(Routes.TASKS_ARCHIVED) {
             ArchivedTasksRoute(
-                onBack = { navController.popBackStack() },
+                onBack = safeBack,
                 onOpenTask = { taskId -> navController.navigate(Routes.taskDetail(taskId)) },
             )
         }
         composable(Routes.UNCLASSIFIED) {
-            UnclassifiedRoute(onBack = { navController.popBackStack() })
+            UnclassifiedRoute(onBack = safeBack)
         }
         composable(
             route = Routes.TASK_DETAIL,
             arguments = listOf(navArgument(TASK_ID_ARG) { type = NavType.StringType }),
         ) {
-            TaskDetailRoute(onBack = { navController.popBackStack() })
+            TaskDetailRoute(onBack = safeBack)
         }
         composable(Routes.NEW_TASK) {
             NewTaskRoute(
-                onBack = { navController.popBackStack() },
-                onSent = { navController.popBackStack() },
+                onBack = safeBack,
+                onSent = safeBack,
             )
         }
-        composable(Routes.SETTINGS) {
+        composable(Routes.SETTINGS) { entry ->
+            val savedHandle = entry.savedStateHandle
+            // 从下一页跳回时可能会带 auto_open_zip_password=true
+            val auto = savedHandle.get<Boolean>(Routes.ARG_AUTO_OPEN_ZIP_PASSWORD) == true
             SettingsRoute(
-                onBack = { navController.popBackStack() },
+                onBack = safeBack,
                 onOpenMail = { navController.navigate(Routes.SETTINGS_MAIL) },
                 onOpenFetch = { navController.navigate(Routes.SETTINGS_FETCH) },
                 onNavigateToTemplates = { navController.navigate(Routes.SETTINGS_TEMPLATES) },
+                onNavigateToConfigIo = { navController.navigate(Routes.SETTINGS_CONFIG_IO) },
+                autoOpenZipPassword = auto,
+                onConsumeAutoOpenZipPassword = {
+                    savedHandle[Routes.ARG_AUTO_OPEN_ZIP_PASSWORD] = false
+                },
             )
         }
         composable(Routes.SETTINGS_MAIL) {
-            MailSetupRoute(onBack = { navController.popBackStack() })
+            MailSetupRoute(onBack = safeBack)
         }
         composable(Routes.SETTINGS_FETCH) {
-            FetchIntervalRoute(onBack = { navController.popBackStack() })
+            FetchIntervalRoute(onBack = safeBack)
         }
         composable(Routes.SETTINGS_TEMPLATES) {
-            CommandTemplatesRoute(onBack = { navController.popBackStack() })
+            CommandTemplatesRoute(onBack = safeBack)
+        }
+        composable(Routes.SETTINGS_CONFIG_IO) {
+            ConfigIoRoute(
+                onBack = {
+                    // 同 safeBack：只在本 entry RESUMED 时响应返回，避免快速连点。
+                    // 额外明确 pop 到 SETTINGS 这一层，避免某些时序下 NavHost 栈顶
+                    // 与渲染位置不同步导致的白屏。
+                    if (navController.currentBackStackEntry?.lifecycleIsResumed() == true) {
+                        val popped = navController.popBackStack(Routes.SETTINGS, inclusive = false)
+                        if (!popped) {
+                            navController.navigate(Routes.SETTINGS) {
+                                popUpTo(Routes.TASKS) { inclusive = false }
+                                launchSingleTop = true
+                            }
+                        }
+                    }
+                },
+            )
         }
     }
 }
+
+/**
+ * 当前 entry 是否处于 RESUMED。
+ * Compose Navigation 官方推荐的「防重复 pop」护栏：
+ * 快速连点 onBack 时，第一次点击 popBackStack 后本 entry 会逐步过渡出 RESUMED，
+ * 后续点击一律被这里拦下，不会发生超额 pop 造成的白屏。
+ */
+private fun NavBackStackEntry.lifecycleIsResumed(): Boolean =
+    this.lifecycle.currentState == Lifecycle.State.RESUMED

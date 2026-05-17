@@ -112,4 +112,62 @@
     <string name="settings_zip_password_dialog_desc">Encrypted zip attachments will be auto-decrypted with this password. You will be prompted to enter one if it fails.</string>
     <string name="settings_zip_password_hint">Master password</string>
     <string name="settings_zip_password_clear">Clear</string>
+
+    <!-- ====== Config import/export (sub page) ====== -->
+    <string name="settings_row_config_io">Config import / export</string>
+    <string name="settings_row_config_io_desc">Pack your identities, command templates and more into an encrypted ZIP for migration or backup.</string>
+    <string name="settings_config_io_title">Config import / export</string>
+    <string name="settings_config_io_intro">Export includes the SELF / AGENT identities, IMAP/SMTP settings (without passwords), command templates, fetch intervals and crash report preference. Mailbox passwords and the attachment master password itself are never exported. The ZIP is encrypted with the "Attachment decrypt password" from Settings.</string>
+    <string name="settings_config_io_section_export">Export</string>
+    <string name="settings_config_io_section_import">Import</string>
+    <string name="settings_config_io_export_row">Export to encrypted ZIP</string>
+    <string name="settings_config_io_export_desc">After choosing a location an encrypted ZIP will be written; the file name carries a timestamp.</string>
+    <string name="settings_config_io_import_row">Import from encrypted ZIP</string>
+    <string name="settings_config_io_import_desc">After picking a file you\'ll confirm a merge strategy.</string>
+    <string name="settings_config_io_busy">Working…</string>
+
+    <!-- Missing master password guidance: jump back to Settings and auto-open the password dialog. -->
+    <string name="settings_config_io_need_zip_password">Please set the "Attachment decrypt password" first.</string>
+
+    <!-- Merge strategy dialog -->
+    <string name="settings_config_io_strategy_title">How should we merge?</string>
+    <string name="settings_config_io_strategy_overwrite">Overwrite</string>
+    <string name="settings_config_io_strategy_overwrite_desc">Same-typed accounts/templates are overwritten; preferences (intervals, crash reports) are also overwritten. Mailbox passwords are untouched.</string>
+    <string name="settings_config_io_strategy_merge">Add new only</string>
+    <string name="settings_config_io_strategy_merge_desc">Only write accounts and templates that don\'t exist locally; preferences untouched.</string>
+    <string name="settings_config_io_strategy_skip">Skip existing</string>
+    <string name="settings_config_io_strategy_skip_desc">Skip when a same-type account or same (title, subject) template already exists; preferences untouched.</string>
+    <!-- %1$d accounts to write / %2$d total accounts / %3$d templates to write / %4$d total templates -->
+    <string name="settings_config_io_strategy_summary_fmt">This run will write %1$d/%2$d accounts and %3$d/%4$d templates</string>
+    <string name="settings_config_io_strategy_no_change">No entries will be written under the current strategy. Choose “Overwrite existing” if you want this file to replace your local configuration.</string>
+    <string name="settings_config_io_strategy_confirm">Confirm import</string>
+
+    <!-- Single-button info dialog -->
+    <string name="settings_config_io_ok">OK</string>
+
+    <!-- Error dialogs -->
+    <string name="settings_config_io_wrong_pw_title">Wrong password</string>
+    <string name="settings_config_io_wrong_pw_body">The ZIP cannot be opened with the current "Attachment decrypt password". Please confirm the export side used the same master password.</string>
+    <string name="settings_config_io_malformed_title">Cannot parse file</string>
+    <!-- %1$s error detail -->
+    <string name="settings_config_io_malformed_body">The import file is malformed: %1$s</string>
+    <string name="settings_config_io_version_title">Version not supported</string>
+    <!-- %1$d version in file -->
+    <string name="settings_config_io_version_body">This config file (v%1$d) is newer than what this build can handle. Please update the app and try again.</string>
+    <string name="settings_config_io_failure_title">Operation failed</string>
+    <!-- %1$s error detail -->
+    <string name="settings_config_io_failure_body">Unexpected error: %1$s</string>
+
+    <!-- Snackbar copy -->
+    <string name="settings_config_io_msg_export_ok">Exported</string>
+    <!-- %1$d accounts written / %2$d templates written -->
+    <string name="settings_config_io_msg_import_ok">Imported: %1$d accounts, %2$d templates</string>
+    <string name="settings_config_io_msg_weak_password">Note: the master password is shorter than 8 characters; consider a longer one.</string>
+    
+        <!-- Inline master-password top-up dialog -->
+        <string name="settings_config_io_inline_pw_title">Master password required</string>
+        <string name="settings_config_io_inline_pw_desc_export">Exporting needs the master password to encrypt the ZIP. Enter it and the export will resume automatically after it is saved.</string>
+        <string name="settings_config_io_inline_pw_desc_import">Importing needs the master password to decrypt the ZIP. Enter the same password used at export time; the import will resume automatically after it is saved.</string>
+        <string name="settings_config_io_inline_pw_confirm_export">Save &amp; export</string>
+        <string name="settings_config_io_inline_pw_confirm_import">Save &amp; import</string>
 </resources>
