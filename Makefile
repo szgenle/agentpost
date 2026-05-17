@@ -4,7 +4,7 @@
 ADB := /Users/ws/Library/Android/sdk/platform-tools/adb
 PKG := com.szgenle.agentpost
 
-.PHONY: help devices install run stop log log-all logcat-clear install-run uninstall clean build build-release sign-release
+.PHONY: help devices install run stop log log-all logcat-clear install-run uninstall clean build build-release sign-release verify-release
 
 help:
 	@echo "可用命令："
@@ -12,6 +12,8 @@ help:
 	@echo "  make build         仅编译 debug 包（不安装）"
 	@echo "  make build-release 编译 release APK（未签名）"
 	@echo "  make sign-release  对 release APK 进行签名（需提供 KEYSTORE/KEY_ALIAS）"
+	@echo "  make verify-release 验证 APK 签名，并可选自动比对 keystore 指纹"
+	@echo "                     用法：make verify-release APK=<APK路径> [KEYSTORE=<jks> KEY_ALIAS=<别名>]"
 	@echo "  make install       编译并安装到手机"
 	@echo "  make run           启动 App"
 	@echo "  make stop          强制停止 App"
@@ -67,6 +69,58 @@ sign-release:
 		$(UNSIGNED_APK)
 	$(APKSIGNER) verify --verbose $(SIGNED_APK)
 	@echo "已签名 APK 输出：$(SIGNED_APK)"
+
+# 验签：默认验证本地构建的 $(SIGNED_APK)，可通过 APK=<路径> 指定下载下来的 APK
+# 同时传入 KEYSTORE 与 KEY_ALIAS 时，会自动比对 APK 证书指纹与 keystore 指纹
+# 用法示例：
+#   make verify-release
+#   make verify-release APK=~/Downloads/app-release.apk
+#   make verify-release APK=~/Downloads/app-release.apk KEYSTORE=~/keystores/agentpost.jks KEY_ALIAS=agentpost
+APK ?= $(SIGNED_APK)
+APK_RESOLVED := $(APK:~%=$(HOME)%)
+
+verify-release: SHELL := /bin/bash
+verify-release:
+	@if [ ! -f "$(APK_RESOLVED)" ]; then \
+		echo "未找到 APK：$(APK_RESOLVED)"; \
+		echo "请通过 APK=<路径> 指定，或先 make sign-release 生成 $(SIGNED_APK)"; exit 1; \
+	fi
+	@if [ ! -x "$(APKSIGNER)" ]; then \
+		echo "未找到 apksigner：$(APKSIGNER)"; \
+		echo "请确认 ANDROID_HOME 与 build-tools 已安装"; exit 1; \
+	fi
+	@echo "==> 验签：$(APK_RESOLVED)"
+	@TMP=$$(mktemp); \
+	$(APKSIGNER) verify --verbose --print-certs "$(APK_RESOLVED)" | tee "$$TMP"; \
+	RC=$${PIPESTATUS[0]}; \
+	if [ $$RC -ne 0 ]; then \
+		rm -f "$$TMP"; echo "❌ APK 验签未通过"; exit $$RC; \
+	fi; \
+	APK_SHA=$$(awk '/Signer #1 certificate SHA-256 digest:/ {print $$NF}' "$$TMP" | tr 'A-Z' 'a-z'); \
+	rm -f "$$TMP"; \
+	echo ""; \
+	echo "APK     SHA-256: $$APK_SHA"; \
+	if [ -n "$(KEYSTORE)" ] && [ -n "$(KEY_ALIAS)" ]; then \
+		if [ ! -f "$(KEYSTORE_RESOLVED)" ]; then \
+			echo "❌ 未找到 keystore：$(KEYSTORE_RESOLVED)"; exit 1; \
+		fi; \
+		KS_OUT=$$(mktemp); \
+		if ! keytool -list -v -keystore "$(KEYSTORE_RESOLVED)" -alias "$(KEY_ALIAS)" \
+			$(if $(KEYSTORE_PASSWORD),-storepass "$(KEYSTORE_PASSWORD)",) \
+			>"$$KS_OUT" </dev/tty; then \
+			rm -f "$$KS_OUT"; echo "❌ keytool 读取 keystore 失败"; exit 1; \
+		fi; \
+		KS_SHA=$$(awk '/SHA256:/ {print $$2; exit}' "$$KS_OUT" | tr -d ':' | tr 'A-Z' 'a-z'); \
+		rm -f "$$KS_OUT"; \
+		echo "Keystore SHA-256: $$KS_SHA"; \
+		if [ -n "$$APK_SHA" ] && [ "$$APK_SHA" = "$$KS_SHA" ]; then \
+			echo "✅ 指纹一致：APK 由该 keystore 签名"; \
+		else \
+			echo "❌ 指纹不一致：APK 不是该 keystore 签名的"; exit 1; \
+		fi; \
+	else \
+		echo "提示：追加 KEYSTORE=<路径> KEY_ALIAS=<别名> 可自动比对指纹"; \
+	fi
 
 install:
 	./gradlew :app:installDebug
