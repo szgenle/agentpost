@@ -7,8 +7,8 @@ android {
 
     defaultConfig {
         applicationId = "com.szgenle.agentpost"
-        versionCode = 1
-        versionName = "0.1.0-SNAPSHOT"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     // 只打包 zh / en 两套 locale，避免 APK 被依赖库（如 AppCompat）携带的其他语言资源撞入。
