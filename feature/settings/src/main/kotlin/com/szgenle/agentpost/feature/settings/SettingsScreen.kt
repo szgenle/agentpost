@@ -2,7 +2,6 @@ package com.szgenle.agentpost.feature.settings
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
@@ -342,26 +341,6 @@ fun SettingsRoute(
                 },
                 modifier = Modifier.clickable(onClick = onNavigateToTemplates),
             )
-
-            // [DEBUG only] 触发一次测试崩溃：验证 CrashHandler 落盘与下次启动的上报流程。
-            // Release 包 FLAG_DEBUGGABLE=0，此行自动消失。测完可整段删除。
-            if (isDebuggable(context)) {
-                HorizontalDivider()
-                ListItem(
-                    headlineContent = { Text("💥 Trigger test crash (DEBUG)") },
-                    supportingContent = {
-                        Text(
-                            text = "Throws RuntimeException on main thread to exercise CrashHandler.",
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    },
-                    modifier = Modifier.clickable {
-                        throw RuntimeException(
-                            "manual test crash @ ${System.currentTimeMillis()}",
-                        )
-                    },
-                )
-            }
         }
     }
 
@@ -574,10 +553,6 @@ private fun appDetailsIntent(context: Context): Intent =
     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
         .setData(Uri.fromParts("package", context.packageName, null))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
-/** 运行时判断当前包是不是 debuggable，用于隐藏 Release 包里的测试入口。 */
-private fun isDebuggable(context: Context): Boolean =
-    (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
 // ---- 崩溃上报偏好（仅本文件使用）----
 
