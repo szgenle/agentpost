@@ -70,13 +70,39 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      # 仅在 tag 推送时执行：解码 keystore + 构建已签名 release APK
+      - name: Decode signing keystore
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$SIGNING_KEYSTORE_BASE64" ]; then
+            echo "::error::Missing SIGNING_KEYSTORE_BASE64 secret"; exit 1
+          fi
+          KEYSTORE_PATH="${RUNNER_TEMP}/release.jks"
+          echo -n "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          echo "SIGNING_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "Keystore decoded ($(wc -c < "$KEYSTORE_PATH") bytes)"
+
+      - name: Assemble signed release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SIGNING_KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      - name: Cleanup keystore
+        if: always() && startsWith(github.ref, 'refs/tags/v')
+        run: rm -f "${RUNNER_TEMP}/release.jks"
+
       # 仅在 tag 推送时执行：重命名 APK 为带版本号的文件名，便于 Release 附件识别
       - name: Rename APK for release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           VERSION="${GITHUB_REF_NAME}"
           mkdir -p release-assets
-          cp app/build/outputs/apk/debug/app-debug.apk "release-assets/agentpost-${VERSION}-debug.apk"
+          cp app/build/outputs/apk/release/app-release.apk "release-assets/agentpost-${VERSION}.apk"
           ls -la release-assets/
 
       - name: Upload release APK artifact

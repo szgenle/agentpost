@@ -16,6 +16,28 @@ android {
         localeFilters += listOf("zh", "en")
     }
 
+    // Release 签名配置：从环境变量读取（CI 在 GitHub Secrets 注入）。
+    // 未提供完整变量时跳过签名配置，本地 assembleRelease 仍可产出未签名 APK。
+    val signingKeystorePath = providers.environmentVariable("SIGNING_KEYSTORE_PATH").orNull
+    val signingKeystorePassword = providers.environmentVariable("SIGNING_KEYSTORE_PASSWORD").orNull
+    val signingKeyAlias = providers.environmentVariable("SIGNING_KEY_ALIAS").orNull
+    val signingKeyPassword = providers.environmentVariable("SIGNING_KEY_PASSWORD").orNull
+    val hasReleaseSigning = !signingKeystorePath.isNullOrBlank() &&
+        !signingKeystorePassword.isNullOrBlank() &&
+        !signingKeyAlias.isNullOrBlank() &&
+        !signingKeyPassword.isNullOrBlank()
+
+    if (hasReleaseSigning) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(signingKeystorePath!!)
+                storePassword = signingKeystorePassword
+                this.keyAlias = signingKeyAlias
+                this.keyPassword = signingKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -23,6 +45,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
