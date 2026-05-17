@@ -39,6 +39,8 @@ UNSIGNED_APK := app/build/outputs/apk/release/app-release-unsigned.apk
 SIGNED_APK   := app/build/outputs/apk/release/app-release.apk
 KEYSTORE     ?=
 KEY_ALIAS    ?=
+# 展开 KEYSTORE 路径中的 ~ 前缀（双引号包裹时 shell 不会自动展开 ~）
+KEYSTORE_RESOLVED := $(KEYSTORE:~%=$(HOME)%)
 
 build-release:
 	./gradlew :app:assembleRelease
@@ -57,7 +59,7 @@ sign-release:
 		echo "请确认 ANDROID_HOME 与 build-tools 已安装"; exit 1; \
 	fi
 	$(APKSIGNER) sign \
-		--ks "$(KEYSTORE)" \
+		--ks "$(KEYSTORE_RESOLVED)" \
 		--ks-key-alias "$(KEY_ALIAS)" \
 		$(if $(KEYSTORE_PASSWORD),--ks-pass pass:$(KEYSTORE_PASSWORD),) \
 		$(if $(KEY_PASSWORD),--key-pass pass:$(KEY_PASSWORD),) \
