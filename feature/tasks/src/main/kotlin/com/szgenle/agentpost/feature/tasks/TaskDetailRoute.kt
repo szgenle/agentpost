@@ -6,6 +6,7 @@ import android.content.Intent
 import android.text.format.Formatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -191,21 +192,23 @@ fun TaskDetailRoute(
                         )
                     }
                 } else {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        items(state.messages, key = { it.id }) { msg ->
-                            MessageBubble(
-                                msg = msg,
-                                downloadingKeys = state.downloadingKeys,
-                                onRetry = { viewModel.retrySend(msg.id) },
-                                onAttachmentClick = { index, att ->
-                                    viewModel.onAttachmentClick(msg.id, index, att)
-                                },
-                            )
+                    SelectionContainer {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            items(state.messages, key = { it.id }) { msg ->
+                                MessageBubble(
+                                    msg = msg,
+                                    downloadingKeys = state.downloadingKeys,
+                                    onRetry = { viewModel.retrySend(msg.id) },
+                                    onAttachmentClick = { index, att ->
+                                        viewModel.onAttachmentClick(msg.id, index, att)
+                                    },
+                                )
+                            }
                         }
                     }
                 }

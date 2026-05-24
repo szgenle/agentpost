@@ -13,15 +13,21 @@
     <string name="tasks_menu_archived">已归档</string>
     <string name="tasks_menu_settings">设置</string>
 
-    <!-- 首页长按进入的选择模式（批量归档） -->
-    <!-- %1$d = 已选中的任务数 -->
-    <string name="tasks_selection_title_count">已选择 %1$d 项</string>
-    <string name="tasks_selection_clear_cd">退出选择</string>
-    <string name="tasks_selection_action_select_all">全选</string>
-    <string name="tasks_selection_action_archive">归档</string>
-    <!-- %1$d = 本次成功归档的任务数 -->
-    <string name="tasks_archived_toast">已归档 %1$d 个任务</string>
+    <!-- 卡片长按上下文菜单 -->
+    <string name="tasks_card_menu_archive">归档</string>
+    <string name="tasks_card_menu_delete">删除</string>
+    <!-- %s = 已归档的任务标题 -->
+    <string name="tasks_archived_toast">已归档：%s</string>
     <string name="tasks_archive_failed">归档失败</string>
+
+    <!-- 删除确认弹窗 -->
+    <string name="tasks_delete_confirm_title">删除任务？</string>
+    <string name="tasks_delete_confirm_message">将移除此任务及其全部消息与本地附件，操作不可恢复。邮箱上的原邮件不受影响。</string>
+    <string name="tasks_delete_confirm_ok">删除</string>
+    <string name="tasks_delete_confirm_cancel">取消</string>
+    <!-- %s = 已删除的任务标题 -->
+    <string name="tasks_deleted_toast">已删除：%s</string>
+    <string name="tasks_delete_failed">删除失败</string>
 
     <!-- 已归档任务页 -->
     <string name="archived_title">已归档</string>

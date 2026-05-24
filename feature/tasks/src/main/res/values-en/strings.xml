@@ -13,15 +13,21 @@
     <string name="tasks_menu_archived">Archived</string>
     <string name="tasks_menu_settings">Settings</string>
 
-    <!-- Home long-press selection mode (bulk archive) -->
-    <!-- %1$d = selected task count -->
-    <string name="tasks_selection_title_count">%1$d selected</string>
-    <string name="tasks_selection_clear_cd">Exit selection</string>
-    <string name="tasks_selection_action_select_all">Select all</string>
-    <string name="tasks_selection_action_archive">Archive</string>
-    <!-- %1$d = number of tasks archived in this batch -->
-    <string name="tasks_archived_toast">Archived %1$d task(s)</string>
+    <!-- Card long-press context menu -->
+    <string name="tasks_card_menu_archive">Archive</string>
+    <string name="tasks_card_menu_delete">Delete</string>
+    <!-- %s = archived task title -->
+    <string name="tasks_archived_toast">Archived: %s</string>
     <string name="tasks_archive_failed">Archive failed</string>
+
+    <!-- Delete confirmation dialog -->
+    <string name="tasks_delete_confirm_title">Delete task?</string>
+    <string name="tasks_delete_confirm_message">This will remove the task, all its messages and local attachments. This cannot be undone. Original emails on the mail server are not affected.</string>
+    <string name="tasks_delete_confirm_ok">Delete</string>
+    <string name="tasks_delete_confirm_cancel">Cancel</string>
+    <!-- %s = deleted task title -->
+    <string name="tasks_deleted_toast">Deleted: %s</string>
+    <string name="tasks_delete_failed">Failed to delete</string>
 
     <!-- Archived tasks page -->
     <string name="archived_title">Archived</string>
