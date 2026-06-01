@@ -10,6 +10,7 @@ import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.mail.MailPushSession
 import com.szgenle.agentpost.notification.NotificationController
+import com.szgenle.lanbeacon.BeaconConfig
 import com.szgenle.lanbeacon.LanPresenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -73,11 +74,13 @@ class PushSyncService : Service() {
             val appVersion = packageManager.getPackageInfo(packageName, 0).versionName.orEmpty()
             lanManager = LanPresenceManager(this).also {
                 it.start(
-                    port = port,
-                    appName = "agentpost",
-                    appVersion = appVersion,
-                    serviceType = "_agentpost._tcp.",
-                    serviceName = "AgentPost",
+                    BeaconConfig(
+                        port = port,
+                        appName = "agentpost",
+                        appVersion = appVersion,
+                        serviceType = "_agentpost._tcp.",
+                        serviceName = "AgentPost",
+                    )
                 )
             }
         } else if (!wantLanPresence && lanManager != null) {
