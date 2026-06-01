@@ -4,6 +4,8 @@
     <!-- SMTP/IMAP 网络访问 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- 局域网在场广播：获取 WiFi IP / 网络变化监听 -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Android 13+ 发通知需要运行时权限 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 实时推送用的前台服务（IMAP IDLE 长连），Android 14+ 必须声明子类型 dataSync -->

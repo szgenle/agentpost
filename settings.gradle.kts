@@ -17,6 +17,15 @@ dependencyResolutionManagement {
 
 rootProject.name = "AgentPost"
 
+// 源码集成 lan-beacon（兄弟仓库 composite build）。
+// 后续切到 JitPack 时，删除本块、改用普通 implementation 坐标即可。
+includeBuild("../lan-beacon/android") {
+    dependencySubstitution {
+        substitute(module("com.szgenle.lanbeacon:lib"))
+            .using(project(":lib"))
+    }
+}
+
 include(":app")
 
 // core 层

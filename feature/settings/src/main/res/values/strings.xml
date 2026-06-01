@@ -59,6 +59,12 @@
     <string name="settings_row_background">允许后台运行</string>
     <string name="settings_row_realtime">实时通知（实验）</string>
     <string name="settings_row_realtime_desc">保持 IMAP 长连，秒级送达；耗电略增。关闭时维持 30 秒 + 15 分钟 双轨</string>
+
+    <!-- 局域网在场广播 -->
+    <string name="settings_row_lan_presence">局域网在场广播</string>
+    <string name="settings_row_lan_presence_desc">允许同 WiFi 设备探测本机在场状态</string>
+    <string name="settings_lan_ip_port_fmt">当前 IP：%1$s  端口：%2$d</string>
+    <string name="settings_lan_no_wifi">未连接 WiFi</string>
     <!-- 电池优化软引导对话框 -->
     <string name="settings_battery_hint_title">建议加入电池白名单</string>
     <string name="settings_battery_hint_message">实时推送需要保持 IMAP 长连。若未将 AgentPost 加入电池白名单，系统省电策略可能在屏幕熄灭或长时间后台时断开长连，导致通知延迟。</string>

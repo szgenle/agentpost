@@ -168,6 +168,28 @@ class AppPreferences(context: Context) {
         store.edit { it[REALTIME_BATTERY_DIALOG_SHOWN_KEY] = shown }
     }
 
+    // --- 局域网在场广播 ---
+    // 默认关闭：用户首次安装不主动起 HTTP 服务，避免意外。
+    // 打开后启动局域网 HTTP server，关闭后立即停止。
+    fun observeLanPresence(): Flow<Boolean> =
+        store.data.map { it[LAN_PRESENCE_KEY] ?: false }
+
+    suspend fun getLanPresence(): Boolean = observeLanPresence().first()
+
+    suspend fun setLanPresence(enabled: Boolean) {
+        store.edit { it[LAN_PRESENCE_KEY] = enabled }
+    }
+
+    // 局域网在场广播端口，默认 47821（与 aipet 对齐）。
+    fun observeLanPresencePort(): Flow<Int> =
+        store.data.map { it[LAN_PRESENCE_PORT_KEY] ?: DEFAULT_LAN_PORT }
+
+    suspend fun getLanPresencePort(): Int = observeLanPresencePort().first()
+
+    suspend fun setLanPresencePort(port: Int) {
+        store.edit { it[LAN_PRESENCE_PORT_KEY] = port }
+    }
+
     // --- 命令模板库（#13） ---
     // 整张列表以 JSON 字符串形式落一个 key。量级小（几十条内），无迁移、无
     // schema，用 org.json 零新依赖；上层写入是整表覆盖语义，顺序由 UI 层维护。
@@ -198,9 +220,12 @@ class AppPreferences(context: Context) {
         val REALTIME_BATTERY_DIALOG_SHOWN_KEY =
             booleanPreferencesKey("realtime_battery_dialog_shown")
         val COMMAND_TEMPLATES_KEY = stringPreferencesKey("command_templates_json")
+        val LAN_PRESENCE_KEY = booleanPreferencesKey("lan_presence_enabled")
+        val LAN_PRESENCE_PORT_KEY = intPreferencesKey("lan_presence_port")
 
         const val DEFAULT_FG_SEC = 60
         const val DEFAULT_BG_MIN = 15
+        const val DEFAULT_LAN_PORT = 47821
     }
 }
 

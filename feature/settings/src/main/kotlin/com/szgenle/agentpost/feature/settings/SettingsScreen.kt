@@ -41,6 +41,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +49,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import android.net.ConnectivityManager
+import java.net.Inet4Address
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -272,6 +275,31 @@ fun SettingsRoute(
                             }
                             viewModel.setRealtimePush(nextEnabled)
                         },
+                    )
+                },
+            )
+            HorizontalDivider()
+
+            // 局域网在场广播：开关 ON 时启动 HTTP server + mDNS，供 aipet 探测在场
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_lan_presence)) },
+                supportingContent = {
+                    val text = if (state.lanPresence) {
+                        val ip = rememberCurrentLanIp()
+                        if (ip != null) {
+                            stringResource(R.string.settings_lan_ip_port_fmt, ip, state.lanPresencePort)
+                        } else {
+                            stringResource(R.string.settings_lan_no_wifi)
+                        }
+                    } else {
+                        stringResource(R.string.settings_row_lan_presence_desc)
+                    }
+                    Text(text = text, style = MaterialTheme.typography.bodyMedium)
+                },
+                trailingContent = {
+                    Switch(
+                        checked = state.lanPresence,
+                        onCheckedChange = { viewModel.setLanPresence(it) },
                     )
                 },
             )
@@ -712,6 +740,28 @@ private fun ZipPasswordDialog(
             }
         },
     )
+}
+
+/**
+ * 在 Compose 中读取当前设备的 WiFi LAN IPv4 地址。
+ * 没有 WiFi 连接时返回 null。
+ */
+@Composable
+private fun rememberCurrentLanIp(): String? {
+    val context = LocalContext.current
+    val ip by produceState<String?>(initialValue = null) {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        if (cm != null) {
+            val network = cm.activeNetwork
+            val linkProps = network?.let { cm.getLinkProperties(it) }
+            value = linkProps?.linkAddresses
+                ?.map { it.address }
+                ?.filterIsInstance<Inet4Address>()
+                ?.firstOrNull { !it.isLoopbackAddress }
+                ?.hostAddress
+        }
+    }
+    return ip
 }
 
 /**

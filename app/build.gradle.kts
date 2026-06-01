@@ -73,6 +73,8 @@ dependencies {
     implementation(project(":core:mail"))
     implementation(project(":core:data"))
     implementation(project(":core:ui"))
+    // lan-beacon：局域网在场广播（源码集成，settings.gradle.kts 里 composite build）
+    implementation("com.szgenle.lanbeacon:lib")
 
     // feature
     implementation(project(":feature:tasks"))

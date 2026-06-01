@@ -49,6 +49,12 @@
     <string name="settings_row_background">Background execution</string>
     <string name="settings_row_realtime">Realtime push (experimental)</string>
     <string name="settings_row_realtime_desc">Keeps an IMAP long connection for instant delivery; slightly higher battery use. When off, falls back to 30s foreground + 15min worker.</string>
+
+    <!-- LAN presence broadcast -->
+    <string name="settings_row_lan_presence">LAN Presence</string>
+    <string name="settings_row_lan_presence_desc">Allow devices on the same WiFi to detect presence</string>
+    <string name="settings_lan_ip_port_fmt">IP: %1$s  Port: %2$d</string>
+    <string name="settings_lan_no_wifi">No WiFi connection</string>
     <!-- Battery optimization soft hint dialog -->
     <string name="settings_battery_hint_title">Allow unrestricted battery use?</string>
     <string name="settings_battery_hint_message">Realtime push keeps an IMAP connection open. Without battery optimization exemption, the system may drop the connection when the screen is off or the app stays in the background, delaying notifications.</string>

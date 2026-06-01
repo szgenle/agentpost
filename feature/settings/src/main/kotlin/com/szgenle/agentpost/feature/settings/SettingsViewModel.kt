@@ -45,6 +45,10 @@ data class SettingsUiState(
     val realtimePush: Boolean = false,
     /** 电池优化引导弹框是否已演示过。成员函数命名与 DataStore key 保持一致。 */
     val realtimeBatteryDialogShown: Boolean = false,
+    /** 局域网在场广播开关。默认 false。 */
+    val lanPresence: Boolean = false,
+    /** 局域网在场广播端口。 */
+    val lanPresencePort: Int = 47821,
 )
 
 class SettingsViewModel(
@@ -63,12 +67,19 @@ class SettingsViewModel(
     ) { self, agent, t, langTag, intervals ->
         Quint(self, agent, t, langTag, intervals)
     }.let { base ->
+        // 将局域网两个流合并为 Pair，避免超出 combine 5 参数上限
+        val lanFlow = combine(
+            prefs.observeLanPresence(),
+            prefs.observeLanPresencePort(),
+        ) { enabled, port -> Pair(enabled, port) }
+
         combine(
             base,
             prefs.observeCrashReportPref(),
             prefs.observeRealtimePush(),
             prefs.observeRealtimeBatteryDialogShown(),
-        ) { b, crashPref, push, batteryShown ->
+            lanFlow,
+        ) { b, crashPref, push, batteryShown, (lanPresence, lanPort) ->
             SettingsUiState(
                 self = b.self,
                 agent = b.agent,
@@ -80,6 +91,8 @@ class SettingsViewModel(
                 hasZipPassword = b.t.hasZipPassword,
                 realtimePush = push,
                 realtimeBatteryDialogShown = batteryShown,
+                lanPresence = lanPresence,
+                lanPresencePort = lanPort,
             )
         }
     }.stateIn(
@@ -159,6 +172,16 @@ class SettingsViewModel(
     /** 切换实时推送开关，创建引线由 Controller 持续听并拉起/停掉 PushSyncService。 */
     fun setRealtimePush(enabled: Boolean) {
         viewModelScope.launch { prefs.setRealtimePush(enabled) }
+    }
+
+    /** 切换局域网在场广播开关。 */
+    fun setLanPresence(enabled: Boolean) {
+        viewModelScope.launch { prefs.setLanPresence(enabled) }
+    }
+
+    /** 修改局域网在场广播端口。 */
+    fun setLanPresencePort(port: Int) {
+        viewModelScope.launch { prefs.setLanPresencePort(port) }
     }
 
     /** 电池优化引导已展示过：走设置 / 不再提示 均调此方法。 */
