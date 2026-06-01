@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import android.os.PowerManager
 
 /**
  * 多职责前台服务。
@@ -40,12 +41,14 @@ class PushSyncService : Service() {
     private var session: MailPushSession? = null
     private var bootstrapJob: Job? = null
     private var lanManager: LanPresenceManager? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         AppLog.i(TAG, "PushSyncService onCreate")
+        acquireWakeLock()
         startAsForeground()
     }
 
@@ -53,8 +56,20 @@ class PushSyncService : Service() {
         // 系统在异常杀死后重建 Service 时也要重新进入前台（防止 ANR）
         startAsForeground()
 
-        val wantRealtimePush = intent?.getBooleanExtra(EXTRA_REALTIME_PUSH, false) ?: false
-        val wantLanPresence = intent?.getBooleanExtra(EXTRA_LAN_PRESENCE, false) ?: false
+        // START_STICKY 重建时 intent 为 null：需从偏好读取真实开关状态，
+        // 否则两个 flag 都是 false 导致服务空转无意义。
+        val wantRealtimePush: Boolean
+        val wantLanPresence: Boolean
+        if (intent != null) {
+            wantRealtimePush = intent.getBooleanExtra(EXTRA_REALTIME_PUSH, false)
+            wantLanPresence = intent.getBooleanExtra(EXTRA_LAN_PRESENCE, false)
+        } else {
+            // 系统杀死后重建，从 DataStore 恢复真实状态
+            AppLog.i(TAG, "onStartCommand: intent=null (system restart), reading prefs")
+            val prefs = AppServiceLocator.appPreferences
+            wantRealtimePush = runBlocking { prefs.getRealtimePush() }
+            wantLanPresence = runBlocking { prefs.getLanPresence() }
+        }
         AppLog.i(TAG, "onStartCommand: realtimePush=$wantRealtimePush, lanPresence=$wantLanPresence")
 
         // --- IDLE Push 子组件 ---
@@ -92,6 +107,24 @@ class PushSyncService : Service() {
         return START_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        AppLog.i(TAG, "onTaskRemoved: user swiped from recents, rescheduling")
+        // 用户划掉最近任务后，国产 ROM 会终止进程；
+        // 利用 AlarmManager 在 5 秒后重新拉起服务，确保推送不中断。
+        val restartIntent = Intent(this, PushSyncService::class.java)
+        val pi = android.app.PendingIntent.getService(
+            this, 0, restartIntent,
+            android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val am = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        am.setAndAllowWhileIdle(
+            android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            android.os.SystemClock.elapsedRealtime() + 5_000L,
+            pi,
+        )
+    }
+
     override fun onDestroy() {
         AppLog.i(TAG, "PushSyncService onDestroy")
         runCatching { session?.stop() }
@@ -100,6 +133,7 @@ class PushSyncService : Service() {
         lanManager?.stop()
         lanManager = null
         runCatching { scope.cancel() }
+        releaseWakeLock()
         super.onDestroy()
     }
 
@@ -117,6 +151,21 @@ class PushSyncService : Service() {
                 notification,
             )
         }
+    }
+
+    private fun acquireWakeLock() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "AgentPost::PushSyncWakeLock",
+        ).apply { acquire() }
+    }
+
+    private fun releaseWakeLock() {
+        runCatching {
+            wakeLock?.takeIf { it.isHeld }?.release()
+        }
+        wakeLock = null
     }
 
     private suspend fun bootstrapPushSession() {
