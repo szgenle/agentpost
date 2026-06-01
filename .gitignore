@@ -1,8 +1,8 @@
 # macOS
 .DS_Store
 
-# Research (local only, not tracked)
-research/
+# local (local only, not tracked)
+/local/
 
 # Gradle
 .gradle/
