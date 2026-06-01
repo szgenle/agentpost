@@ -1,5 +1,6 @@
 package com.szgenle.agentpost.sync
 
+import android.app.ActivityManager
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -28,6 +29,9 @@ class SyncMailWorker(
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
+        // 看门狗：若实时推送/局域网在场开关为 ON 但 Service 不在跑，强制拉起
+        ensurePushServiceAlive()
+
         return try {
             val repo = AppServiceLocator.mailRepository
             val result = repo.syncInbox()
@@ -72,5 +76,32 @@ class SyncMailWorker(
                     request,
                 )
         }
+    }
+
+    /**
+     * 看门狗：检查前台服务是否在运行，不在则重新拉起。
+     *
+     * 国产 ROM（小米/OPPO/vivo）即使 stopWithTask=false + START_STICKY，
+     * 仍可能在内存紧张时强杀前台服务且不重建。
+     * WorkManager 是系统级调度，存活率远高于普通 Service，
+     * 利用它做定期健康检查可大幅提升推送可靠性。
+     */
+    private suspend fun ensurePushServiceAlive() {
+        val prefs = AppServiceLocator.appPreferences
+        val wantRealtimePush = prefs.getRealtimePush()
+        val wantLanPresence = prefs.getLanPresence()
+        if (!wantRealtimePush && !wantLanPresence) return
+
+        if (!isServiceRunning(applicationContext, PushSyncService::class.java)) {
+            AppLog.i(TAG, "watchdog: PushSyncService not running, restarting (push=$wantRealtimePush, lan=$wantLanPresence)")
+            PushSyncService.start(applicationContext, wantRealtimePush, wantLanPresence)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun isServiceRunning(context: Context, serviceClass: Class<*>): Boolean {
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        return am.getRunningServices(Int.MAX_VALUE)
+            .any { it.service.className == serviceClass.name }
     }
 }
