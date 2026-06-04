@@ -17,6 +17,13 @@ dependencyResolutionManagement {
     }
 }
 
+// 本地调试：composite build 引入 lan-beacon 源码，Gradle 会自动替换同 group:artifact 的远程依赖
+includeBuild("/Users/ws/Dev/szgenle/lan-beacon/android") {
+    dependencySubstitution {
+        substitute(module("com.github.szgenle:lan-beacon")).using(project(":lib"))
+    }
+}
+
 rootProject.name = "AgentPost"
 
 include(":app")
