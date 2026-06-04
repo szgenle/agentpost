@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.core.mail.MailPushSession
@@ -37,12 +38,14 @@ class PushSyncService : Service() {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var session: MailPushSession? = null
     private var bootstrapJob: Job? = null
+    private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         AppLog.i(TAG, "PushSyncService onCreate")
+        acquireWakeLock()
         startAsForeground()
         bootstrapJob = scope.launch { bootstrapPushSession() }
     }
@@ -53,13 +56,47 @@ class PushSyncService : Service() {
         return START_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        AppLog.i(TAG, "onTaskRemoved: user swiped from recents, rescheduling")
+        // 用户划掉最近任务后，国产 ROM 会终止进程；
+        // 利用 AlarmManager 在 5 秒后重新拉起服务，确保推送不中断。
+        val restartIntent = Intent(this, PushSyncService::class.java)
+        val pi = android.app.PendingIntent.getService(
+            this, 0, restartIntent,
+            android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE,
+        )
+        val am = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        am.setAndAllowWhileIdle(
+            android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            android.os.SystemClock.elapsedRealtime() + 5_000L,
+            pi,
+        )
+    }
+
     override fun onDestroy() {
         AppLog.i(TAG, "PushSyncService onDestroy")
         runCatching { session?.stop() }
         session = null
         runCatching { bootstrapJob?.cancel() }
         runCatching { scope.cancel() }
+        releaseWakeLock()
         super.onDestroy()
+    }
+
+    private fun acquireWakeLock() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "AgentPost::PushSyncWakeLock",
+        ).apply { acquire() }
+    }
+
+    private fun releaseWakeLock() {
+        runCatching {
+            wakeLock?.takeIf { it.isHeld }?.release()
+        }
+        wakeLock = null
     }
 
     private fun startAsForeground() {

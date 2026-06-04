@@ -11,6 +11,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- 软引导用户加入电池白名单：仅跳系统设置，不直接申请 -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- 开机自启：恢复实时推送前台服务 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 保持 CPU 唤醒以维持 IMAP IDLE 长连接 -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name=".AgentPostApp"
@@ -35,11 +39,23 @@
         </activity>
 
         <!-- 实时推送前台服务：开启"实时通知"开关后常驻，用 IMAP IDLE 秒级感知新邮件。
-             foregroundServiceType="dataSync"：唯一匹配 IMAP 长连语义的类型。 -->
+             foregroundServiceType="dataSync"：唯一匹配 IMAP 长连语义的类型。
+             stopWithTask="false"：用户划掉任务后不随之停止，提升活着率。 -->
         <service
             android:name=".sync.PushSyncService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="false" />
+
+        <!-- 开机自启：手机重启后自动恢复前台服务 -->
+        <receiver
+            android:name=".sync.BootCompletedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <!-- 附件文件共享给外部 app 打开用。
              authority 统一用 "${applicationId}.fileprovider"；路径白名单见 res/xml/file_paths.xml。 -->
