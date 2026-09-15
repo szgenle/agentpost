@@ -1,5 +1,6 @@
 package com.szgenle.agentpost.core.mail.internal
 
+import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.mail.IncomingAttachment
 import com.szgenle.agentpost.core.mail.IncomingMail
 import com.szgenle.agentpost.core.mail.MailCredentials
@@ -12,8 +13,8 @@ import jakarta.mail.Multipart
 import jakarta.mail.Part
 import jakarta.mail.Session
 import jakarta.mail.Store
+import jakarta.mail.UIDFolder
 import jakarta.mail.internet.MimeMessage
-import jakarta.mail.search.FlagTerm
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Properties
@@ -26,6 +27,10 @@ import java.util.Properties
  */
 internal class JakartaMailFetcher : MailFetcher {
 
+    private companion object {
+        const val TAG = "JakartaMailFetcher"
+    }
+
     override suspend fun fetchNew(
         credentials: MailCredentials,
         sinceUid: Long,
@@ -34,13 +39,27 @@ internal class JakartaMailFetcher : MailFetcher {
             val folder = store.store.getFolder("INBOX") as IMAPFolder
             folder.open(Folder.READ_ONLY)
             try {
-                // 只拉未读；对端有时不置 SEEN，也能通过 sinceUid 兜底去重
-                val unseen = folder.search(FlagTerm(Flags(Flags.Flag.SEEN), false))
-                unseen
+                val total = folder.messageCount
+                val uidValidity = folder.uidValidity
+                // 不再用 SEEN 过滤：QQ/163 等邮箱已读状态全端同步，回复一旦在网页/客户端被
+                // 读过就永远拉不到。改为纯 UID 增量（sinceUid+1 .. LASTUID），已读未读都取，
+                // 幂等交给上层 existsByExternalMessageId 去重。
+                val range = folder.getMessagesByUID(sinceUid + 1, UIDFolder.LASTUID)
+                    .filterNotNull()
+                AppLog.i(
+                    TAG,
+                    "fetchNew: total=$total uidValidity=$uidValidity sinceUid=$sinceUid rangeSize=${range.size}",
+                )
+                range
                     .map { folder.getUID(it) to (it as MimeMessage) }
                     .filter { (uid, _) -> uid > sinceUid }
                     .sortedBy { (_, msg) -> msg.sentDate?.time ?: 0L }
-                    .mapNotNull { (uid, msg) -> runCatching { parse(msg, uid) }.getOrNull() }
+                    .mapNotNull { (uid, msg) ->
+                        runCatching { parse(msg, uid) }.getOrElse { e ->
+                            AppLog.w(TAG, "fetchNew: parse failed uid=$uid: ${e.message}")
+                            null
+                        }
+                    }
             } finally {
                 folder.close(false)
             }

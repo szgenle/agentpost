@@ -159,6 +159,12 @@ class MailRepository internal constructor(
         if (password != null) {
             vault.put(credentialKey, password)
         }
+        // 更换邮箱（含 QQ 别名切换：email 变、imapHost 不变）时 account.id 被复用，
+        // 但旧邮箱攒下的 IMAP 同步水线 lastSyncUid 仍以该 id 为键保留。若不重置，新邮箱
+        // 的邮件 UID 可能全部 <= 旧水线，被 fetchNew 的 `uid > sinceUid` 永久过滤，
+        // 表现为“连接成功、发送正常，但一直拉不到新邮件”。
+        val mailboxChanged = existing != null &&
+            (existing.email != email || existing.imapHost != imapHost)
         accountDao.upsert(
             Account(
                 id = id,
@@ -175,6 +181,10 @@ class MailRepository internal constructor(
                 createdAt = existing?.createdAt ?: System.currentTimeMillis(),
             )
         )
+        if (mailboxChanged) {
+            AppLog.i(TAG, "SELF mailbox changed (${existing?.email} -> $email), reset lastSyncUid to 0")
+            prefs.setLastSyncUid(id, 0L)
+        }
     }
 
     /**
