@@ -93,6 +93,7 @@ fun SettingsRoute(
     var showCrashPrefDialog by remember { mutableStateOf(false) }
     var showZipPasswordDialog by remember { mutableStateOf(false) }
     var showBatteryHintDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     // ConfigIoRoute 在未设主密码时会带一次性信号跳回本页，
     // 这里读到 true 后自动展开「加密附件密码」弹框，同时请调用方复位。
@@ -408,6 +409,28 @@ fun SettingsRoute(
                 },
                 modifier = Modifier.clickable { showCrashPrefDialog = true },
             )
+            HorizontalDivider()
+
+            // 关于：弹框展示当前版本号
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_row_about)) },
+                supportingContent = {
+                    Text(
+                        text = stringResource(
+                            R.string.settings_about_version_fmt,
+                            rememberAppVersionName(context),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = null,
+                    )
+                },
+                modifier = Modifier.clickable { showAboutDialog = true },
+            )
         }
     }
 
@@ -473,6 +496,12 @@ fun SettingsRoute(
                 showBatteryHintDialog = false
             },
             onLater = { showBatteryHintDialog = false },
+        )
+    }
+    if (showAboutDialog) {
+        AboutDialog(
+            versionName = rememberAppVersionName(context),
+            onDismiss = { showAboutDialog = false },
         )
     }
 }
@@ -799,6 +828,43 @@ private fun BatteryOptimizationHintDialog(
                 TextButton(onClick = onLater) {
                     Text(stringResource(R.string.settings_battery_hint_later))
                 }
+            }
+        },
+    )
+}
+
+/**
+ * 读取当前 App 的版本号（versionName）。
+ * 取自 PackageManager，避免在 feature 模块直接依赖 app 模块的 BuildConfig。
+ * 获取失败时回退为空串。
+ */
+@Composable
+private fun rememberAppVersionName(context: Context): String = remember(context) {
+    runCatching {
+        context.packageManager
+            .getPackageInfo(context.packageName, 0)
+            .versionName
+    }.getOrNull().orEmpty()
+}
+
+/** 关于弹框：展示当前版本号，单按钮关闭。 */
+@Composable
+private fun AboutDialog(
+    versionName: String,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_about_dialog_title)) },
+        text = {
+            Text(
+                text = stringResource(R.string.settings_about_version_fmt, versionName),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_config_io_ok))
             }
         },
     )
