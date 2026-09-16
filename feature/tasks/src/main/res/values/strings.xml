@@ -66,6 +66,16 @@
     <!-- %s = 目标任务标题 -->
     <string name="unclassified_assigned_to">已指派到：%s</string>
     <string name="unclassified_assign_failed">指派失败</string>
+    <!-- 一键清空 -->
+    <string name="unclassified_action_clear">清空</string>
+    <string name="unclassified_clear_confirm_title">清空未分类消息？</string>
+    <!-- %1$d = 待清空的消息条数 -->
+    <string name="unclassified_clear_confirm_message">将移除这 %1$d 条未分类消息及其本地附件，操作不可恢复。邮箱上的原邮件不受影响。</string>
+    <string name="unclassified_clear_confirm_ok">清空</string>
+    <string name="unclassified_clear_confirm_cancel">取消</string>
+    <string name="unclassified_clear_failed">清空失败</string>
+    <!-- %1$d = 本次清空的消息条数 -->
+    <string name="unclassified_cleared">已清空 %1$d 条消息</string>
 
     <!-- 任务详情 -->
     <string name="task_detail_loading">加载中…</string>

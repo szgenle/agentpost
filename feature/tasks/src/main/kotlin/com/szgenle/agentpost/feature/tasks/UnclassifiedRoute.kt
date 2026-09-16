@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -23,7 +24,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -59,6 +62,8 @@ import com.szgenle.agentpost.core.ui.R as CoreUiR
  * @property pickerForMessageId 当前正要指派的消息 id；非空即展开 BottomSheet
  * @property assigningMessageId 指派动作进行中的消息 id，用于阻止重复点击
  * @property lastAssignedTitle 最近一次成功指派到的 Task 标题，UI 弹一次 Snackbar 后消费
+ * @property clearing 一键清空进行中标记，用于阻止重复点击并驱动按钮 loading 态
+ * @property lastClearedCount 最近一次成功清空的消息条数；非空即弹一次 Snackbar 后消费
  * @property error 一次性错误文案
  */
 data class UnclassifiedUiState(
@@ -67,6 +72,8 @@ data class UnclassifiedUiState(
     val pickerForMessageId: String? = null,
     val assigningMessageId: String? = null,
     val lastAssignedTitle: String? = null,
+    val clearing: Boolean = false,
+    val lastClearedCount: Int? = null,
     val error: UiText? = null,
 )
 
@@ -94,6 +101,8 @@ class UnclassifiedViewModel(
             pickerForMessageId = t.pickerForMessageId,
             assigningMessageId = t.assigningMessageId,
             lastAssignedTitle = t.lastAssignedTitle,
+            clearing = t.clearing,
+            lastClearedCount = t.lastClearedCount,
             error = t.error,
         )
     }.stateIn(
@@ -154,10 +163,45 @@ class UnclassifiedViewModel(
         transient.value = transient.value.copy(lastAssignedTitle = null)
     }
 
+    /**
+     * 一键清空全部未分类消息（本地硬删）。清空进行中忽略重复点击，
+     * 成功后以 [UnclassifiedUiState.lastClearedCount] 冒一次 Snackbar。
+     */
+    fun clearAll() {
+        if (transient.value.clearing) return
+        val count = uiState.value.messages.size
+        if (count == 0) return
+
+        viewModelScope.launch {
+            transient.value = transient.value.copy(clearing = true)
+            val r = runCatching { repo.clearUnclassifiedMessages() }
+            transient.value = r.fold(
+                onSuccess = {
+                    transient.value.copy(clearing = false, lastClearedCount = count)
+                },
+                onFailure = { e ->
+                    val msg = e.message
+                    val uiText = if (!msg.isNullOrBlank()) {
+                        UiText.Dynamic(msg)
+                    } else {
+                        UiText.Resource(R.string.unclassified_clear_failed)
+                    }
+                    transient.value.copy(clearing = false, error = uiText)
+                },
+            )
+        }
+    }
+
+    fun consumeClearedCount() {
+        transient.value = transient.value.copy(lastClearedCount = null)
+    }
+
     private data class Transient(
         val pickerForMessageId: String? = null,
         val assigningMessageId: String? = null,
         val lastAssignedTitle: String? = null,
+        val clearing: Boolean = false,
+        val lastClearedCount: Int? = null,
         val error: UiText? = null,
     )
 
@@ -177,6 +221,7 @@ fun UnclassifiedRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     // 错误：一次性 Snackbar，用完消费
     LaunchedEffect(state.error) {
@@ -193,6 +238,13 @@ fun UnclassifiedRoute(
         snackbarHostState.showSnackbar(assignedFmt.format(label))
         viewModel.consumeAssignedTitle()
     }
+    // 成功：展示本次清空的消息条数
+    val clearedFmt = stringResource(R.string.unclassified_cleared)
+    LaunchedEffect(state.lastClearedCount) {
+        val count = state.lastClearedCount ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(clearedFmt.format(count))
+        viewModel.consumeClearedCount()
+    }
 
     Scaffold(
         topBar = {
@@ -201,6 +253,16 @@ fun UnclassifiedRoute(
                 navigationIcon = {
                     TextButton(onClick = onBack) {
                         Text(stringResource(CoreUiR.string.common_back))
+                    }
+                },
+                actions = {
+                    if (state.messages.isNotEmpty()) {
+                        TextButton(
+                            onClick = { showClearConfirm = true },
+                            enabled = !state.clearing,
+                        ) {
+                            Text(stringResource(R.string.unclassified_action_clear))
+                        }
                     }
                 },
             )
@@ -248,6 +310,37 @@ fun UnclassifiedRoute(
                 onDismiss = viewModel::dismissPicker,
             )
         }
+    }
+
+    // 一键清空确认弹窗
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text(stringResource(R.string.unclassified_clear_confirm_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.unclassified_clear_confirm_message,
+                        state.messages.size,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirm = false
+                        viewModel.clearAll()
+                    },
+                ) {
+                    Text(stringResource(R.string.unclassified_clear_confirm_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) {
+                    Text(stringResource(R.string.unclassified_clear_confirm_cancel))
+                }
+            },
+        )
     }
 }
 

@@ -87,6 +87,16 @@ interface TaskMessageDao {
     suspend fun listLocalIdsByTask(taskId: String): List<String>
 
     /**
+     * 删除指定 Task 下的全部消息行。
+     *
+     * 仅动 DB；对应的附件落盘目录需由调用方先用 [listLocalIdsByTask] 拿到本地 UUID
+     * 逐个清理，避免文件变孤儿。占位任务（未分类购物篮）清空消息时也走这里——
+     * 只清消息，保留占位 Task 行本身。
+     */
+    @Query("DELETE FROM task_messages WHERE taskId = :taskId")
+    suspend fun deleteByTaskId(taskId: String)
+
+    /**
      * 单步更新发送状态。
      *
      * - 发送开始：status=SENDING，externalMessageId/sendError 维持 null

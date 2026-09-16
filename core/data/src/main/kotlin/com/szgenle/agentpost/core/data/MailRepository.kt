@@ -805,6 +805,28 @@ class MailRepository internal constructor(
         taskDao.touch(targetTaskId, msg.sentAt)
     }
 
+    /**
+     * 一键清空未分类购物篮（仅限本地：不动 IMAP 服务器上的邮件）。
+     *
+     * 与 [deleteTask] 同样的清理顺序：先拿到占位任务下所有消息的本地 UUID，
+     * 批量删除 `filesDir/attachments/{id}` 附件目录避免孤儿，再删消息行。
+     * 只清消息，保留占位 Task 行本身（后续同步还会往里落新的未归类来信）。
+     */
+    suspend fun clearUnclassifiedMessages() {
+        val messageIds = messageDao.listLocalIdsByTask(SystemIds.UNCLASSIFIED_TASK_ID)
+        if (messageIds.isNotEmpty()) {
+            withContext(Dispatchers.IO) {
+                for (mid in messageIds) {
+                    val dir = File(appContext.filesDir, "attachments/$mid")
+                    if (dir.exists()) {
+                        runCatching { dir.deleteRecursively() }
+                    }
+                }
+            }
+        }
+        messageDao.deleteByTaskId(SystemIds.UNCLASSIFIED_TASK_ID)
+    }
+
     // ============================================================
     // 崩溃上报（给自己发邮件，不落 Task/TaskMessage）
     // ============================================================

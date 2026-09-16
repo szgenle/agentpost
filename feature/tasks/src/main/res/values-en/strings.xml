@@ -66,6 +66,16 @@
     <!-- %s = target task title -->
     <string name="unclassified_assigned_to">Assigned to: %s</string>
     <string name="unclassified_assign_failed">Failed to assign</string>
+    <!-- Clear all -->
+    <string name="unclassified_action_clear">Clear</string>
+    <string name="unclassified_clear_confirm_title">Clear unclassified messages?</string>
+    <!-- %1$d = number of messages to clear -->
+    <string name="unclassified_clear_confirm_message">This will remove these %1$d unclassified messages and their local attachments. This cannot be undone. Original emails on the mail server are not affected.</string>
+    <string name="unclassified_clear_confirm_ok">Clear</string>
+    <string name="unclassified_clear_confirm_cancel">Cancel</string>
+    <string name="unclassified_clear_failed">Failed to clear</string>
+    <!-- %1$d = number of messages cleared -->
+    <string name="unclassified_cleared">Cleared %1$d messages</string>
 
     <string name="task_detail_loading">Loading…</string>
     <string name="task_detail_empty">No messages</string>
