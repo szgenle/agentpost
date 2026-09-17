@@ -38,6 +38,8 @@ import android.os.PowerManager
 class PushSyncService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    @Volatile
     private var session: MailPushSession? = null
     private var bootstrapJob: Job? = null
     private var lanManager: LanPresenceManager? = null
@@ -48,6 +50,7 @@ class PushSyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         AppLog.i(TAG, "PushSyncService onCreate")
+        activeService = this
         acquireWakeLock()
         startAsForeground()
     }
@@ -73,7 +76,13 @@ class PushSyncService : Service() {
         AppLog.i(TAG, "onStartCommand: realtimePush=$wantRealtimePush, lanPresence=$wantLanPresence")
 
         // --- IDLE Push 子组件 ---
-        if (wantRealtimePush && session == null) {
+        // session 为空或已不在跑（IDLE 协程被系统回收/异常退出）都需重建，
+        // 只看 session 句柄是否非空会把"死了的 session"当成健康。
+        if (wantRealtimePush && (session == null || session?.isRunning == false)) {
+            AppLog.i(TAG, "(re)starting IDLE session bootstrap: sessionNull=${session == null} running=${session?.isRunning}")
+            runCatching { session?.stop() }
+            session = null
+            runCatching { bootstrapJob?.cancel() }
             bootstrapJob = scope.launch { bootstrapPushSession() }
         } else if (!wantRealtimePush && session != null) {
             AppLog.i(TAG, "stopping IDLE session")
@@ -127,6 +136,7 @@ class PushSyncService : Service() {
 
     override fun onDestroy() {
         AppLog.i(TAG, "PushSyncService onDestroy")
+        if (activeService === this) activeService = null
         runCatching { session?.stop() }
         session = null
         runCatching { bootstrapJob?.cancel() }
@@ -186,6 +196,12 @@ class PushSyncService : Service() {
                 // 不 stop self：可能 LAN presence 仍在运行
                 return
             }
+            if (session != null) {
+                // 看门狗重复触发 start 可能并发跑到这里：保留先建立者，停掉重复的
+                AppLog.w(TAG, "bootstrapPushSession: session already exists, discarding duplicate")
+                runCatching { created.stop() }
+                return
+            }
             session = created
             AppLog.i(TAG, "IDLE session started")
         } catch (t: Throwable) {
@@ -203,6 +219,14 @@ class PushSyncService : Service() {
         private const val TAG = "PushSyncService"
         const val EXTRA_REALTIME_PUSH = "extra_realtime_push"
         const val EXTRA_LAN_PRESENCE = "extra_lan_presence"
+
+        /** 当前存活实例，仅用于看门狗探测 session 活性；onDestroy 时清除。 */
+        @Volatile
+        private var activeService: PushSyncService? = null
+
+        /** Service 存活且其 IDLE 长连接真在跑，才算实时推送健康。 */
+        fun isPushSessionRunning(): Boolean =
+            activeService?.session?.isRunning == true
 
         fun start(context: Context, realtimePush: Boolean, lanPresence: Boolean) {
             val intent = Intent(context, PushSyncService::class.java).apply {

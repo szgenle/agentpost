@@ -1,6 +1,7 @@
 package com.szgenle.agentpost.core.mail.internal
 
 import com.szgenle.agentpost.core.common.logging.AppLog
+import com.szgenle.agentpost.core.mail.FetchBatch
 import com.szgenle.agentpost.core.mail.IncomingAttachment
 import com.szgenle.agentpost.core.mail.IncomingMail
 import com.szgenle.agentpost.core.mail.MailCredentials
@@ -34,32 +35,47 @@ internal class JakartaMailFetcher : MailFetcher {
     override suspend fun fetchNew(
         credentials: MailCredentials,
         sinceUid: Long,
-    ): List<IncomingMail> = withContext(Dispatchers.IO) {
+        sinceUidValidity: Long?,
+    ): FetchBatch = withContext(Dispatchers.IO) {
         openStore(credentials).use { store ->
             val folder = store.store.getFolder("INBOX") as IMAPFolder
             folder.open(Folder.READ_ONLY)
             try {
                 val total = folder.messageCount
                 val uidValidity = folder.uidValidity
-                // 不再用 SEEN 过滤：QQ/163 等邮箱已读状态全端同步，回复一旦在网页/客户端被
-                // 读过就永远拉不到。改为纯 UID 增量（sinceUid+1 .. LASTUID），已读未读都取，
-                // 幂等交给上层 existsByExternalMessageId 去重。
-                val range = folder.getMessagesByUID(sinceUid + 1, UIDFolder.LASTUID)
+                // UID 只在同一 UIDVALIDITY epoch 内有意义：不一致或本地未记录 → 服务器
+                // 重建过 INBOX、UID 已重新编号，旧水位会永久过滤新邮件，降级为全量重扫。
+                val rescan = sinceUidValidity == null || sinceUidValidity != uidValidity
+                if (rescan) {
+                    AppLog.w(
+                        TAG,
+                        "fetchNew: uidValidity changed (local=$sinceUidValidity server=$uidValidity), " +
+                            "full rescan instead of incremental sinceUid=$sinceUid",
+                    )
+                }
+                val startUid = if (rescan) 1L else sinceUid + 1
+                val range = folder.getMessagesByUID(startUid, UIDFolder.LASTUID)
                     .filterNotNull()
                 AppLog.i(
                     TAG,
-                    "fetchNew: total=$total uidValidity=$uidValidity sinceUid=$sinceUid rangeSize=${range.size}",
+                    "fetchNew: total=$total uidValidity=$uidValidity sinceUid=$sinceUid " +
+                        "rescan=$rescan range=[$startUid..LASTUID] rangeSize=${range.size}",
                 )
+                val mails = mutableListOf<IncomingMail>()
+                val failedUids = mutableListOf<Long>()
                 range
                     .map { folder.getUID(it) to (it as MimeMessage) }
-                    .filter { (uid, _) -> uid > sinceUid }
+                    .filter { (uid, _) -> uid >= startUid }
                     .sortedBy { (_, msg) -> msg.sentDate?.time ?: 0L }
-                    .mapNotNull { (uid, msg) ->
-                        runCatching { parse(msg, uid) }.getOrElse { e ->
-                            AppLog.w(TAG, "fetchNew: parse failed uid=$uid: ${e.message}")
-                            null
-                        }
+                    .forEach { (uid, msg) ->
+                        runCatching { parse(msg, uid) }
+                            .onSuccess { mails += it }
+                            .onFailure { e ->
+                                AppLog.w(TAG, "fetchNew: parse failed uid=$uid: ${e.message}")
+                                failedUids += uid
+                            }
                     }
+                FetchBatch(mails = mails, failedUids = failedUids, uidValidity = uidValidity)
             } finally {
                 folder.close(false)
             }
@@ -129,15 +145,19 @@ internal class JakartaMailFetcher : MailFetcher {
     override fun startPush(
         credentials: MailCredentials,
         initialUid: Long,
-        onIncoming: suspend (List<IncomingMail>) -> Unit,
+        initialUidValidity: Long?,
+        onIncoming: suspend (FetchBatch) -> Unit,
         onError: (Throwable) -> Unit,
+        onUidValidityChanged: suspend (Long) -> Unit,
     ): MailPushSession {
         return JakartaMailPushSession(
             fetcher = this,
             credentials = credentials,
             initialUid = initialUid,
+            initialUidValidity = initialUidValidity,
             onIncoming = onIncoming,
             onError = onError,
+            onUidValidityChanged = onUidValidityChanged,
         ).also { it.start() }
     }
 

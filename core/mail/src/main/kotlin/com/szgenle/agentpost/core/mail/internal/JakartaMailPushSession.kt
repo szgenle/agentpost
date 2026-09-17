@@ -1,14 +1,15 @@
 package com.szgenle.agentpost.core.mail.internal
 
 import com.szgenle.agentpost.core.common.logging.AppLog
+import com.szgenle.agentpost.core.mail.FetchBatch
 import com.szgenle.agentpost.core.mail.IncomingMail
 import com.szgenle.agentpost.core.mail.MailCredentials
 import com.szgenle.agentpost.core.mail.MailPushSession
-import jakarta.mail.Flags
+import com.szgenle.agentpost.core.mail.UidWatermarks
 import jakarta.mail.Folder
 import jakarta.mail.Store
+import jakarta.mail.UIDFolder
 import jakarta.mail.internet.MimeMessage
-import jakarta.mail.search.FlagTerm
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,8 +45,10 @@ internal class JakartaMailPushSession(
     private val fetcher: JakartaMailFetcher,
     private val credentials: MailCredentials,
     initialUid: Long,
-    private val onIncoming: suspend (List<IncomingMail>) -> Unit,
+    initialUidValidity: Long?,
+    private val onIncoming: suspend (FetchBatch) -> Unit,
     private val onError: (Throwable) -> Unit,
+    private val onUidValidityChanged: suspend (Long) -> Unit,
 ) : MailPushSession {
 
     private val running = AtomicBoolean(false)
@@ -59,6 +62,9 @@ internal class JakartaMailPushSession(
 
     @Volatile
     private var lastUid: Long = initialUid
+
+    @Volatile
+    private var uidValidity: Long? = initialUidValidity
 
     private var mainJob: Job? = null
     private var heartbeatJob: Job? = null
@@ -125,8 +131,32 @@ internal class JakartaMailPushSession(
         currentFolder = folder
         AppLog.d(TAG, "openAndIdleOnce: INBOX opened, messageCount=${runCatching { folder.messageCount }.getOrDefault(-1)}")
 
-        // 追赶：刚建立长连时先把 lastUid → 最新 UNSEEN 拉一遍，补上连接间隙漏掉的
+        // 校验 UIDVALIDITY：不一致或本地未记录 → 服务器重建过 INBOX，旧 lastUid 在
+        // 新编号空间会永久过滤新邮件，归零做全量重扫（上层 Message-ID 去重兜底）。
+        // 注意 onUidValidityChanged 需放在追赶 drain 之后：上层在 onIncoming 里按
+        // "本地 validity vs 本批 validity" 决定是否重置持久化水线，若先写 validity
+        // 会让上层误判 epoch 未变、残留旧高水位。
+        val serverUidValidity = folder.uidValidity
+        val knownUidValidity = uidValidity
+        var epochChanged = false
+        if (knownUidValidity != serverUidValidity) {
+            AppLog.w(
+                TAG,
+                "openAndIdleOnce: uidValidity changed (local=$knownUidValidity server=$serverUidValidity), " +
+                    "reset lastUid $lastUid -> 0, full rescan",
+            )
+            lastUid = 0L
+            uidValidity = serverUidValidity
+            epochChanged = true
+        }
+
+        // 追赶：刚建立长连时先把 (lastUid, LASTUID] 拉一遍，补上连接间隙漏掉的
         runCatchingDrain(folder)
+
+        if (epochChanged) {
+            runCatching { onUidValidityChanged(serverUidValidity) }
+                .onFailure { AppLog.w(TAG, "onUidValidityChanged persist failed: ${it.message}") }
+        }
 
         var idleRound = 0
         while (scope.isActive && running.get() && folder.isOpen) {
@@ -148,15 +178,25 @@ internal class JakartaMailPushSession(
     /** @return 本次 drain 是否捞到新邮件（供自适应心跳调参使用）。 */
     private suspend fun runCatchingDrain(folder: IMAPFolder): Boolean {
         return try {
-            val newItems = drainNew(folder)
-            AppLog.d(TAG, "drain: newItems=${newItems.size} lastUid=$lastUid")
-            if (newItems.isNotEmpty()) {
-                newItems.maxOfOrNull { it.imapUid }?.let { maxUid ->
-                    if (maxUid > lastUid) lastUid = maxUid
+            val batch = drainNew(folder)
+            AppLog.d(
+                TAG,
+                "drain: newMails=${batch.mails.size} failedUids=${batch.failedUids.size} lastUid=$lastUid",
+            )
+            if (batch.mails.isNotEmpty() || batch.failedUids.isNotEmpty()) {
+                // 先让上层入库；抛错则走 catch，水位不推进，下轮重拉同一区间（Message-ID 去重幂等）
+                onIncoming(batch)
+                val newWatermark = UidWatermarks.safeAdvance(
+                    parsedUids = batch.mails.map { it.imapUid },
+                    failedUids = batch.failedUids,
+                    current = lastUid,
+                )
+                if (newWatermark > lastUid) {
+                    AppLog.d(TAG, "drain: advance lastUid $lastUid -> $newWatermark")
+                    lastUid = newWatermark
                 }
-                onIncoming(newItems)
             }
-            newItems.isNotEmpty()
+            batch.mails.isNotEmpty()
         } catch (ce: CancellationException) {
             throw ce
         } catch (t: Throwable) {
@@ -185,14 +225,34 @@ internal class JakartaMailPushSession(
         }
     }
 
-    private fun drainNew(folder: IMAPFolder): List<IncomingMail> {
-        val unseen = folder.search(FlagTerm(Flags(Flags.Flag.SEEN), false))
-        if (unseen.isEmpty()) return emptyList()
-        return unseen
+    /**
+     * 拉取 (lastUid, LASTUID] 区间的新邮件（纯 UID 增量，不按 UNSEEN 过滤——
+     * 已读状态全端同步，网页版/其他客户端标过已读的信件若按未读过滤会永远拉不到）。
+     * 解析失败的 UID 记入 [FetchBatch.failedUids]，水位不得跨过它们。
+     */
+    private fun drainNew(folder: IMAPFolder): FetchBatch {
+        val startUid = lastUid + 1
+        val range = folder.getMessagesByUID(startUid, UIDFolder.LASTUID)
+            .filterNotNull()
+        AppLog.d(TAG, "drainNew: uidRange=[$startUid..LASTUID] hit=${range.size} lastUid=$lastUid")
+        if (range.isEmpty()) {
+            return FetchBatch(mails = emptyList(), failedUids = emptyList(), uidValidity = folder.uidValidity)
+        }
+        val mails = mutableListOf<IncomingMail>()
+        val failedUids = mutableListOf<Long>()
+        range
             .map { folder.getUID(it) to (it as MimeMessage) }
-            .filter { (uid, _) -> uid > lastUid }
+            .filter { (uid, _) -> uid >= startUid }
             .sortedBy { (_, msg) -> msg.sentDate?.time ?: 0L }
-            .mapNotNull { (uid, msg) -> runCatching { fetcher.parseInternal(msg, uid) }.getOrNull() }
+            .forEach { (uid, msg) ->
+                runCatching { fetcher.parseInternal(msg, uid) }
+                    .onSuccess { mails += it }
+                    .onFailure { e ->
+                        AppLog.w(TAG, "drainNew: parse failed uid=$uid: ${e.message}")
+                        failedUids += uid
+                    }
+            }
+        return FetchBatch(mails = mails, failedUids = failedUids, uidValidity = folder.uidValidity)
     }
 
     private suspend fun runHeartbeat() {

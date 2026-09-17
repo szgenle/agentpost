@@ -19,8 +19,8 @@ import org.json.JSONObject
 /**
  * 应用级非敏感偏好。
  *
- * MVP 阶段只记录：每个 Account 上一次 IMAP 拉取到的最大 UID，
- * 用于增量拉新邮件。
+ * MVP 阶段只记录：每个 Account 上一次 IMAP 拉取到的最大 UID（增量水线）以及
+ * 对应的 IMAP UIDVALIDITY（INBOX 重建检测），用于增量拉新邮件。
  *
  * 敏感信息（密码 / Token）**不要**放这里，用 [com.szgenle.agentpost.core.common.security.CredentialsVault]。
  */
@@ -42,6 +42,23 @@ class AppPreferences(context: Context) {
 
     suspend fun setLastSyncUid(accountId: String, uid: Long) {
         store.edit { it[lastSyncUidKey(accountId)] = uid }
+    }
+
+    // --- IMAP UIDVALIDITY（按账户，INBOX 重建检测） ---
+    // 与 lastSyncUid 配对：UID 只在同一 UIDVALIDITY epoch 内有意义，服务器重建
+    // INBOX 后 UID 重新编号，靠比对本值发现 epoch 变化并安全重置水线。
+    // 0 表示尚未记录（首次同步前）。
+    private fun uidValidityKey(accountId: String) =
+        longPreferencesKey("imap_uid_validity_$accountId")
+
+    fun observeUidValidity(accountId: String): Flow<Long> =
+        store.data.map { it[uidValidityKey(accountId)] ?: 0L }
+
+    suspend fun getUidValidity(accountId: String): Long =
+        observeUidValidity(accountId).first()
+
+    suspend fun setUidValidity(accountId: String, uidValidity: Long) {
+        store.edit { it[uidValidityKey(accountId)] = uidValidity }
     }
 
     // --- 语言偏好 ---

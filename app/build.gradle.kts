@@ -73,6 +73,9 @@ dependencies {
     implementation(project(":core:mail"))
     implementation(project(":core:data"))
     implementation(project(":core:ui"))
+
+    // Jakarta Mail：SyncMailWorker 按 AuthenticationFailedException 等异常类型区分永久性/临时性错误
+    implementation(libs.jakarta.mail)
     // lan-beacon：局域网在场广播（源码集成，settings.gradle.kts 里 composite build）
     implementation("com.github.szgenle:lan-beacon:v0.2.0")
 

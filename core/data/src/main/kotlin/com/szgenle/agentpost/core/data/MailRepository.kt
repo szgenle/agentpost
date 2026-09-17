@@ -11,12 +11,14 @@ import com.szgenle.agentpost.core.database.dao.AccountDao
 import com.szgenle.agentpost.core.database.dao.TaskDao
 import com.szgenle.agentpost.core.database.dao.TaskMessageDao
 import com.szgenle.agentpost.core.datastore.AppPreferences
+import com.szgenle.agentpost.core.mail.FetchBatch
 import com.szgenle.agentpost.core.mail.MailCredentials
 import com.szgenle.agentpost.core.mail.MailFetcher
 import com.szgenle.agentpost.core.mail.MailPushSession
 import com.szgenle.agentpost.core.mail.MailSender
 import com.szgenle.agentpost.core.mail.OutgoingAttachment
 import com.szgenle.agentpost.core.mail.OutgoingMail
+import com.szgenle.agentpost.core.mail.UidWatermarks
 import com.szgenle.agentpost.core.model.Account
 import com.szgenle.agentpost.core.model.AccountType
 import com.szgenle.agentpost.core.model.Attachment
@@ -472,29 +474,63 @@ class MailRepository internal constructor(
         val agent = requireAgent()
         val creds = self.toCredentials()
         val sinceUid = prefs.getLastSyncUid(self.id)
+        val sinceUidValidity = prefs.getUidValidity(self.id).takeIf { it > 0L }
 
-        val incomings = fetcher.fetchNew(creds, sinceUid)
-        if (incomings.isEmpty()) return@runCatching SyncResult(totalNew = 0, perTask = emptyList())
-
-        persistIncomings(incomings, selfId = self.id, agentId = agent.id, baselineUid = sinceUid)
+        val batch = fetcher.fetchNew(creds, sinceUid, sinceUidValidity)
+        val baselineUid = reconcileUidValidity(self.id, batch.uidValidity)
+        persistIncomings(batch, selfId = self.id, agentId = agent.id, baselineUid = baselineUid)
     }
 
     /**
-     * 统一的“把新到达的 IncomingMail 落库 + 生成 [SyncResult]”逻辑。
+     * 校验并持久化 IMAP UIDVALIDITY；epoch 变化时把增量水线安全归零。
+     *
+     * UIDVALIDITY 变化（或首次记录）意味着服务器端 INBOX 被重建、UID 已重新编号，
+     * 旧 lastSyncUid 在新编号空间会指向错误位置，表现为"以前能收、现在收不到"。
+     * 归零触发一次全量重扫，重复邮件由 Message-ID 去重挡掉。
+     *
+     * @return 本批入库推进水线时使用的 baseline：epoch 一致时为当前水线，变化时为 0
+     */
+    private suspend fun reconcileUidValidity(accountId: String, serverUidValidity: Long): Long {
+        val local = prefs.getUidValidity(accountId).takeIf { it > 0L }
+        val sinceUid = prefs.getLastSyncUid(accountId)
+        if (local == serverUidValidity) return sinceUid
+        AppLog.w(
+            TAG,
+            "uidValidity changed for account=$accountId: local=${local ?: "none"} " +
+                "server=$serverUidValidity, reset lastSyncUid $sinceUid -> 0 (full rescan, dedup by Message-ID)",
+        )
+        prefs.setLastSyncUid(accountId, 0L)
+        prefs.setUidValidity(accountId, serverUidValidity)
+        return 0L
+    }
+
+    /**
+     * 统一的"把新到达的邮件落库 + 生成 [SyncResult]"逻辑。
      *
      * [syncInbox]（轮询）和 IDLE 推送共用。内部已处理：
      *  - 通过 externalMessageId 去重
      *  - 路由到已有 Task / 新线程 / 未归类
-     *  - lastSyncUid 推进（统一水线确保 IDLE 和 Worker 从同一位置追赶）
+     *  - lastSyncUid 推进（[UidWatermarks.safeAdvance]：不跨过解析失败的 UID，
+     *    失败邮件下轮从水线 + 1 重拉重试）
      *  - taskDao.touch
      */
     internal suspend fun persistIncomings(
-        incomings: List<com.szgenle.agentpost.core.mail.IncomingMail>,
+        batch: FetchBatch,
         selfId: String,
         agentId: String,
         baselineUid: Long,
     ): SyncResult {
-        if (incomings.isEmpty()) return SyncResult(totalNew = 0, perTask = emptyList())
+        val incomings = batch.mails
+        if (incomings.isEmpty()) {
+            if (batch.failedUids.isNotEmpty()) {
+                AppLog.w(
+                    TAG,
+                    "persistIncomings: all ${batch.failedUids.size} fetched uids failed to parse, " +
+                        "watermark stays at $baselineUid, failedUids=${batch.failedUids.sorted()}",
+                )
+            }
+            return SyncResult(totalNew = 0, perTask = emptyList())
+        }
         ensureUnclassifiedTask(selfId)
         val router = TaskRouter(taskDao, messageDao)
         val perTaskBuckets = linkedMapOf<String, MutableTaskSummary>()
@@ -540,9 +576,22 @@ class MailRepository internal constructor(
                 bucket.latestSubject = mail.subject
             }
         }
-        val newMaxUid = incomings.maxOf { it.imapUid }
-        if (newMaxUid > baselineUid) {
-            prefs.setLastSyncUid(selfId, newMaxUid)
+        // 仅当区间内没有解析失败 UID 时才推到本批最大 UID；有失败则停在最后一个
+        // 连续成功 UID，保证失败邮件下一轮能被重拉（上层 Message-ID 去重保证幂等）。
+        val newWatermark = UidWatermarks.safeAdvance(
+            parsedUids = incomings.map { it.imapUid },
+            failedUids = batch.failedUids,
+            current = baselineUid,
+        )
+        if (batch.failedUids.isNotEmpty()) {
+            AppLog.w(
+                TAG,
+                "persistIncomings: ${batch.failedUids.size} uids failed to parse, " +
+                    "watermark advances to $newWatermark (baseline=$baselineUid), failedUids=${batch.failedUids.sorted()}",
+            )
+        }
+        if (newWatermark > baselineUid) {
+            prefs.setLastSyncUid(selfId, newWatermark)
         }
 
         val perTask = perTaskBuckets.map { (taskId, s) ->
@@ -590,18 +639,22 @@ class MailRepository internal constructor(
         }
         val creds = self.toCredentials()
         val sinceUid = prefs.getLastSyncUid(self.id)
-        AppLog.d(TAG, "startInboxPush: self=${self.id} agent=${agent.id} sinceUid=$sinceUid imap=${creds.imapHost}:${creds.imapPort}")
+        val sinceUidValidity = prefs.getUidValidity(self.id).takeIf { it > 0L }
+        AppLog.d(TAG, "startInboxPush: self=${self.id} agent=${agent.id} sinceUid=$sinceUid uidValidity=$sinceUidValidity imap=${creds.imapHost}:${creds.imapPort}")
         return fetcher.startPush(
             credentials = creds,
             initialUid = sinceUid,
-            onIncoming = { incomings ->
-                runCatching {
-                    val baseline = prefs.getLastSyncUid(self.id)
-                    val result = persistIncomings(incomings, self.id, agent.id, baseline)
-                    if (result.totalNew > 0) onSynced(result)
-                }.onFailure { t -> AppLog.w(TAG, "push onIncoming persist failed", t) }
+            initialUidValidity = sinceUidValidity,
+            onIncoming = { batch ->
+                // persist 抛错要上抛：IDLE 层据此不推进内存水位，下轮重拉同一区间
+                val baselineUid = reconcileUidValidity(self.id, batch.uidValidity)
+                val result = persistIncomings(batch, self.id, agent.id, baselineUid)
+                if (result.totalNew > 0) onSynced(result)
             },
             onError = onError,
+            onUidValidityChanged = { newValidity ->
+                prefs.setUidValidity(self.id, newValidity)
+            },
         )
     }
 

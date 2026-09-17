@@ -12,6 +12,8 @@ import androidx.work.WorkerParameters
 import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.data.AppServiceLocator
 import com.szgenle.agentpost.notification.NotificationController
+import jakarta.mail.AuthenticationFailedException
+import kotlinx.coroutines.CancellationException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -20,8 +22,11 @@ import java.util.concurrent.TimeUnit
  * 策略：
  * - 15 分钟一次（WorkManager 最小周期）
  * - 需要联网
- * - SELF 未配置 / 凭据缺失 / SMTP 网络异常 → 都返回 Result.success()，避免 retry 风暴耗电。
- *   15 分钟后下一轮会再试。
+ * - 失败分级处理：
+ *    - 永久性错误（IMAP/SMTP 鉴权失败、SELF/AGENT 未配置等本地配置问题）→ Result.failure()，
+ *      重试无意义，等用户改配置或下一轮周期再说；
+ *    - 临时性错误（网络超时、连接中断、服务器抖动等）→ Result.retry()，按 WorkManager
+ *      默认退避尽快补拉，避免邮件长时间滞留服务器。
  */
 class SyncMailWorker(
     context: Context,
@@ -44,15 +49,43 @@ class SyncMailWorker(
                     }
                     Result.success()
                 },
-                onFailure = { err ->
-                    AppLog.w(TAG, "syncInbox failed (swallowed, wait next period)", err)
-                    Result.success()
-                },
+                onFailure = { err -> classifyFailure("syncInbox failed", err) },
             )
+        } catch (ce: CancellationException) {
+            throw ce
         } catch (t: Throwable) {
-            AppLog.w(TAG, "SyncMailWorker unexpected error", t)
-            Result.success()
+            classifyFailure("SyncMailWorker unexpected error", t)
         }
+    }
+
+    /**
+     * 按错误性质决定重试策略：
+     * - 永久性（鉴权失败 / 本地配置缺失）：重试必然同样失败，直接 failure；
+     * - 其他一律视为临时性（网络/超时/连接类）：retry 让 WorkManager 退避后补拉。
+     */
+    private fun classifyFailure(msg: String, err: Throwable): Result {
+        return if (err.isPermanent()) {
+            AppLog.w(TAG, "$msg (permanent, no retry): ${err.message}", err)
+            Result.failure()
+        } else {
+            AppLog.w(TAG, "$msg (temporary, retry): ${err.message}", err)
+            Result.retry()
+        }
+    }
+
+    /** 沿 cause 链判断是否为永久性错误。 */
+    private fun Throwable.isPermanent(): Boolean {
+        var cause: Throwable? = this
+        while (cause != null) {
+            when (cause) {
+                // IMAP/SMTP 用户名密码被服务器拒绝：改密码前重试无意义
+                is AuthenticationFailedException -> return true
+                // 本地配置缺失（SELF/AGENT 未配、凭据缺、host 为空等 requireXxx/error() 抛出）
+                is IllegalStateException, is IllegalArgumentException -> return true
+            }
+            cause = cause.cause
+        }
+        return false
     }
 
     companion object {
@@ -85,6 +118,9 @@ class SyncMailWorker(
      * 仍可能在内存紧张时强杀前台服务且不重建。
      * WorkManager 是系统级调度，存活率远高于普通 Service，
      * 利用它做定期健康检查可大幅提升推送可靠性。
+     *
+     * 除 Service 存活外还检查 IDLE session 本身：Service 被保活但 IDLE 协程
+     * 已被掐（session.isRunning=false）时同样踢一脚，让 Service 侧重建长连。
      */
     private suspend fun ensurePushServiceAlive() {
         val prefs = AppServiceLocator.appPreferences
@@ -94,6 +130,11 @@ class SyncMailWorker(
 
         if (!isServiceRunning(applicationContext, PushSyncService::class.java)) {
             AppLog.i(TAG, "watchdog: PushSyncService not running, restarting (push=$wantRealtimePush, lan=$wantLanPresence)")
+            PushSyncService.start(applicationContext, wantRealtimePush, wantLanPresence)
+            return
+        }
+        if (wantRealtimePush && !PushSyncService.isPushSessionRunning()) {
+            AppLog.w(TAG, "watchdog: PushSyncService alive but IDLE session not running, re-kicking to rebuild")
             PushSyncService.start(applicationContext, wantRealtimePush, wantLanPresence)
         }
     }
