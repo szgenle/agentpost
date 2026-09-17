@@ -81,6 +81,7 @@ fun MailSetupRoute(
                 busy = state.busy,
                 onSave = viewModel::save,
                 onTest = viewModel::testConnection,
+                onRescan = viewModel::rescanAll,
             )
         }
     }
@@ -93,6 +94,7 @@ private fun MailSetupForm(
     busy: Boolean,
     onSave: (SelfForm, String) -> Unit,
     onTest: () -> Unit,
+    onRescan: () -> Unit,
 ) {
     var form by remember(initialForm) { mutableStateOf(initialForm) }
     var password by remember(hasExistingPassword) { mutableStateOf("") }
@@ -224,6 +226,17 @@ private fun MailSetupForm(
             modifier = Modifier.weight(1f),
         ) { Text(stringResource(R.string.settings_test_connection)) }
     }
+
+    OutlinedButton(
+        onClick = onRescan,
+        enabled = !busy,
+        modifier = Modifier.fillMaxWidth(),
+    ) { Text(stringResource(R.string.settings_rescan_all)) }
+    Text(
+        stringResource(R.string.settings_rescan_hint),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable

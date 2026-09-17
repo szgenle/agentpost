@@ -110,6 +110,30 @@ class MailSetupViewModel(
         transient.value = transient.value.copy(message = null)
     }
 
+    /**
+     * 手动触发全量重扫：修复“水线被推过头、漏掉的邮件卡在水线之下”的死角。
+     * 已入库邮件靠 Message-ID 去重，只补入之前漏掉的。
+     */
+    fun rescanAll() {
+        viewModelScope.launch {
+            transient.value = TransientState(busy = true)
+            val result = repo.rescanInbox()
+            transient.value = TransientState(
+                message = result.fold(
+                    onSuccess = { r ->
+                        UiText.Resource(R.string.settings_msg_rescan_done, listOf(r.totalNew))
+                    },
+                    onFailure = { e ->
+                        UiText.Resource(
+                            R.string.settings_msg_rescan_failed,
+                            listOf(e.message.orEmpty()),
+                        )
+                    },
+                ),
+            )
+        }
+    }
+
     private data class TransientState(
         val message: UiText? = null,
         val busy: Boolean = false,

@@ -482,6 +482,20 @@ class MailRepository internal constructor(
     }
 
     /**
+     * 用户手动触发的“全量重扫”：把增量水线归零后重新拉一遍 INBOX。
+     *
+     * 用于修复历史遗留的死角——水线被推过头、漏掉的邮件 UID 卡在水线之下
+     * （UIDVALIDITY 未变化时自动兜底不会触发）。已入库邮件由 Message-ID 去重，
+     * 只会补入之前漏掉的。归零后 startUid=1，会扫全箱，大邮箱下耗时略长。
+     */
+    suspend fun rescanInbox(): Result<SyncResult> = runCatching {
+        val self = requireSelf()
+        AppLog.i(TAG, "rescanInbox: user-triggered full rescan, reset lastSyncUid -> 0 for account=${self.id}")
+        prefs.setLastSyncUid(self.id, 0L)
+        syncInbox().getOrThrow()
+    }
+
+    /**
      * 校验并持久化 IMAP UIDVALIDITY；epoch 变化时把增量水线安全归零。
      *
      * UIDVALIDITY 变化（或首次记录）意味着服务器端 INBOX 被重建、UID 已重新编号，
