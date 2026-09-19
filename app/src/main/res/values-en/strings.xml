@@ -3,6 +3,11 @@
     <!-- English placeholder. Keep app_name consistent with Chinese version (brand name). -->
     <string name="app_name">AgentPost</string>
 
+    <!-- Bottom navigation tabs: three top-level destinations -->
+    <string name="nav_tab_tasks">Tasks</string>
+    <string name="nav_tab_archived">Archived</string>
+    <string name="nav_tab_settings">Settings</string>
+
     <!-- Notifications: new mail arrival -->
     <string name="notification_channel_name">New mail</string>
     <string name="notification_channel_description">Alerts for AI replies and new mail</string>

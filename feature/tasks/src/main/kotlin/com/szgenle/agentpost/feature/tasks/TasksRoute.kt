@@ -19,7 +19,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -188,11 +187,9 @@ class TasksViewModel(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TasksRoute(
-    onOpenSettings: () -> Unit,
     onOpenNewTask: () -> Unit,
     onOpenTask: (String) -> Unit,
     onOpenUnclassified: () -> Unit,
-    onOpenArchived: () -> Unit,
     viewModel: TasksViewModel = viewModel(factory = TasksViewModel.Factory),
 ) {
     val briefs by viewModel.briefs.collectAsStateWithLifecycle()
@@ -202,7 +199,6 @@ fun TasksRoute(
 
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var menuExpanded by remember { mutableStateOf(false) }
 
     // 长按卡片时弹出的上下文菜单目标
     var contextMenuBrief by remember { mutableStateOf<TaskBrief?>(null) }
@@ -241,34 +237,8 @@ fun TasksRoute(
 
     Scaffold(
         topBar = {
-            AppTopBar(
-                title = { Text(stringResource(R.string.tasks_title)) },
-                actions = {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        // "⋮" 是纯视觉符号，不做国际化；跟 FAB 的 "+" 保持一致。
-                        Text("⋮", style = MaterialTheme.typography.titleLarge)
-                    }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.tasks_menu_archived)) },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenArchived()
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.tasks_menu_settings)) },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenSettings()
-                            },
-                        )
-                    }
-                },
-            )
+            // 「归档」/「设置」已提升为底部标签，顶栏不再有 overflow 菜单
+            AppTopBar(title = { Text(stringResource(R.string.tasks_title)) })
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(

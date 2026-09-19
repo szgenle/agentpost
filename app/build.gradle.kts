@@ -104,5 +104,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    // 底栏「归档」图标 Icons.Filled.Archive 不在 material-icons-core 集合内。
+    // 只有 app 模块的底栏用到，按 implementation 引入，不向 feature 模块扩散。
+    implementation(libs.androidx.compose.material.icons.extended)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

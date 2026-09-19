@@ -167,10 +167,16 @@ class ArchivedTasksViewModel(
     }
 }
 
+/**
+ * 已归档任务页。
+ *
+ * @param onBack 为 null 时不渲染顶栏返回按钮：本页作为底部标签栏的顶层入口时
+ *   没有可返回的上级（返回键由 Navigation 的返回栈兜底）；被下钻进入时才传入。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArchivedTasksRoute(
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,
     onOpenTask: (String) -> Unit,
     viewModel: ArchivedTasksViewModel = viewModel(factory = ArchivedTasksViewModel.Factory),
 ) {
@@ -236,8 +242,10 @@ fun ArchivedTasksRoute(
             AppTopBar(
                 title = { Text(stringResource(R.string.archived_title)) },
                 navigationIcon = {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(CoreUiR.string.common_back))
+                    if (onBack != null) {
+                        TextButton(onClick = onBack) {
+                            Text(stringResource(CoreUiR.string.common_back))
+                        }
                     }
                 },
             )

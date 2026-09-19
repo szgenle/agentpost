@@ -8,11 +8,6 @@
     <string name="tasks_empty_hint">Tap + to send the first email to your home AI</string>
     <string name="tasks_untitled">(untitled)</string>
 
-    <!-- Top bar overflow menu -->
-    <string name="tasks_action_overflow_cd">More</string>
-    <string name="tasks_menu_archived">Archived</string>
-    <string name="tasks_menu_settings">Settings</string>
-
     <!-- Card long-press context menu -->
     <string name="tasks_card_menu_archive">Archive</string>
     <string name="tasks_card_menu_delete">Delete</string>

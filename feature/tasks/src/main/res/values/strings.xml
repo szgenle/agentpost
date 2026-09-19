@@ -8,11 +8,6 @@
     <string name="tasks_empty_hint">点右下角 + 发第一封邮件给家里的 AI</string>
     <string name="tasks_untitled">(无标题)</string>
 
-    <!-- 顶栏 overflow 菜单 -->
-    <string name="tasks_action_overflow_cd">更多</string>
-    <string name="tasks_menu_archived">已归档</string>
-    <string name="tasks_menu_settings">设置</string>
-
     <!-- 卡片长按上下文菜单 -->
     <string name="tasks_card_menu_archive">归档</string>
     <string name="tasks_card_menu_delete">删除</string>

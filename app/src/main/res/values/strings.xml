@@ -2,6 +2,11 @@
 <resources>
     <string name="app_name">AgentPost</string>
 
+    <!-- 底部标签栏：三个顶层入口（标签文案，非页面标题） -->
+    <string name="nav_tab_tasks">任务</string>
+    <string name="nav_tab_archived">归档</string>
+    <string name="nav_tab_settings">设置</string>
+
     <!-- 通知：新邮件到达提醒 -->
     <string name="notification_channel_name">新邮件</string>
     <string name="notification_channel_description">AI 回复 / 新邮件到达时提醒</string>
