@@ -184,8 +184,11 @@ class MailRepository internal constructor(
             )
         )
         if (mailboxChanged) {
-            AppLog.i(TAG, "SELF mailbox changed (${existing?.email} -> $email), reset lastSyncUid to 0")
+            AppLog.i(TAG, "SELF mailbox changed (${existing?.email} -> $email), reset lastSyncUid & uidValidity (recent-window backfill)")
             prefs.setLastSyncUid(id, 0L)
+            // 同时清 UIDVALIDITY：QQ 别名切换时物理邮箱与 uidValidity 都不变，若只清水线，
+            // fetchNew 会判定 rescan=false 而从 UID 1 增量（=整箱全扫）；清掉后走最近窗口回溯。
+            prefs.setUidValidity(id, 0L)
         }
     }
 
@@ -482,16 +485,18 @@ class MailRepository internal constructor(
     }
 
     /**
-     * 用户手动触发的“全量重扫”：把增量水线归零后重新拉一遍 INBOX。
+     * 用户手动触发的“重新拉取最近邮件”：清空水线与 UIDVALIDITY，触发一次最近窗口回溯。
      *
-     * 用于修复历史遗留的死角——水线被推过头、漏掉的邮件 UID 卡在水线之下
-     * （UIDVALIDITY 未变化时自动兜底不会触发）。已入库邮件由 Message-ID 去重，
-     * 只会补入之前漏掉的。归零后 startUid=1，会扫全箱，大邮箱下耗时略长。
+     * 用于修复历史遗留的死角——水线被推过头、漏掉的邮件卡在水线之下。清空 UIDVALIDITY
+     * 会让 fetchNew 判定需要回溯，只捞最近 BACKFILL_WINDOW_DAYS 天的邮件（不再整箱全扫），
+     * 已入库邮件由 Message-ID 去重，只补入之前漏掉的；回溯后水线一步推到顶端。
      */
     suspend fun rescanInbox(): Result<SyncResult> = runCatching {
         val self = requireSelf()
-        AppLog.i(TAG, "rescanInbox: user-triggered full rescan, reset lastSyncUid -> 0 for account=${self.id}")
+        AppLog.i(TAG, "rescanInbox: user-triggered recent-window backfill for account=${self.id}")
         prefs.setLastSyncUid(self.id, 0L)
+        // 清掉 UIDVALIDITY → fetchNew 判定 rescan=true → 走最近窗口回溯而非 UID 1 整箱全扫。
+        prefs.setUidValidity(self.id, 0L)
         syncInbox().getOrThrow()
     }
 
@@ -536,7 +541,13 @@ class MailRepository internal constructor(
     ): SyncResult {
         val incomings = batch.mails
         if (incomings.isEmpty()) {
-            if (batch.failedUids.isNotEmpty()) {
+            // 回溯窗口内没有新邮件时，仍要把水线一步推到顶端（highWaterUid），
+            // 否则下次会因水线=0 退回整箱全扫。
+            val hw = batch.highWaterUid
+            if (hw != null && hw > baselineUid) {
+                prefs.setLastSyncUid(selfId, hw)
+                AppLog.i(TAG, "persistIncomings: empty batch, jump watermark $baselineUid -> $hw (backfill top)")
+            } else if (batch.failedUids.isNotEmpty()) {
                 AppLog.w(
                     TAG,
                     "persistIncomings: all ${batch.failedUids.size} fetched uids failed to parse, " +
@@ -592,7 +603,9 @@ class MailRepository internal constructor(
         }
         // 仅当区间内没有解析失败 UID 时才推到本批最大 UID；有失败则停在最后一个
         // 连续成功 UID，保证失败邮件下一轮能被重拉（上层 Message-ID 去重保证幂等）。
-        val newWatermark = UidWatermarks.safeAdvance(
+        // 回溯批次：水线直接落到 highWaterUid（顶端），窗口之前的历史不再回看；
+        // 增量批次：按 safeAdvance 推进，不跨过解析失败的 UID（失败邮件下轮从水线+1 重拉）。
+        val newWatermark = batch.highWaterUid ?: UidWatermarks.safeAdvance(
             parsedUids = incomings.map { it.imapUid },
             failedUids = batch.failedUids,
             current = baselineUid,
@@ -623,6 +636,11 @@ class MailRepository internal constructor(
                 latestSentAt = s.latestSentAt,
             )
         }
+        AppLog.i(
+            TAG,
+            "persistIncomings: fetched=${incomings.size} inserted=$inserted " +
+                "skipped(dup)=${incomings.size - inserted} watermark=$newWatermark",
+        )
         return SyncResult(totalNew = inserted, perTask = perTask)
     }
 

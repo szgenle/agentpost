@@ -25,8 +25,8 @@
     <string name="settings_save_self">保存 SELF</string>
     <string name="settings_save_agent">保存 AGENT</string>
     <string name="settings_test_connection">测试拉取</string>
-    <string name="settings_rescan_all">重新全量拉取</string>
-    <string name="settings_rescan_hint">收件箱里明明有邮件、这里却一直收不到时，点这个把整个收件箱重新扫一遍（已入库的会自动去重，只补之前漏掉的）。</string>
+    <string name="settings_rescan_all">重新拉取最近邮件</string>
+    <string name="settings_rescan_hint">收件箱里明明有邮件、这里却一直收不到时，点这个重新拉取最近 7 天的邮件（已入库的会自动去重，只补之前漏掉的；不会整箱全扫，很快）。</string>
 
     <!-- 动态提示：%1$s = 错误信息 -->
     <string name="settings_msg_save_failed">保存失败：%1$s</string>
@@ -35,9 +35,9 @@
     <!-- %1$s = 错误信息 -->
     <string name="settings_msg_test_failed">连接失败：%1$s</string>
     <!-- %1$d = 补入邮件数 -->
-    <string name="settings_msg_rescan_done">全量重扫完成，补入 %1$d 封邮件</string>
+    <string name="settings_msg_rescan_done">已重新拉取，补入 %1$d 封邮件</string>
     <!-- %1$s = 错误信息 -->
-    <string name="settings_msg_rescan_failed">全量重扫失败：%1$s</string>
+    <string name="settings_msg_rescan_failed">重新拉取失败：%1$s</string>
 
     <!-- 缺失账户时的提示：%1$s = 已保存账户标签（SELF/AGENT）。
          拆成两条独立文案而不是运行时拼接，方便翻译审校、避免 ViewModel 持 Context。 -->

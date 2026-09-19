@@ -15,14 +15,16 @@ interface MailFetcher {
      *
      * IMAP UID 只在同一个 UIDVALIDITY epoch 内有意义，本方法内部先比对：
      * - [sinceUidValidity] 与服务端当前 UIDVALIDITY 一致 → 只拉 UID > [sinceUid] 的邮件；
-     * - 不一致或本地未保存（null）→ 服务端重建过 INBOX、UID 已重新编号，旧水位
-     *   会永久过滤掉新邮件，因此降级为从 UID 1 全量重扫，新 epoch 经
-     *   [FetchBatch.uidValidity] 回传给上层保存。重复入库由上层 Message-ID 去重兜底。
+     * - 不一致或本地未保存（null）→ 视为需要回溯。回溯**不再从 UID 1 整箱全扫**（历史
+     *   老邮件对本 app 无意义，全扫既慢又容易撞上畸形老信拖垮整批），而是只捞最近
+     *   若干天收到的邮件（IMAP SINCE），并把 [FetchBatch.highWaterUid] 设为当前邮箱最高
+     *   UID——上层据此把水线一步推到顶，窗口之前的历史一律不再回看，之后只增量拉新邮件。
      *
      * @param credentials       账户凭据
-     * @param sinceUid          只拉 UID 大于此值的邮件；0 = 全量
+     * @param sinceUid          只拉 UID 大于此值的邮件；0 = 从头（配合回溯窗口使用）
      * @param sinceUidValidity  本地保存的 UIDVALIDITY；null 表示尚未记录
-     * @return [FetchBatch]，含成功解析的邮件（按 sentAt 升序）、解析失败的 UID 与本次 UIDVALIDITY
+     * @return [FetchBatch]，含成功解析的邮件（按 sentAt 升序）、解析失败的 UID、本次 UIDVALIDITY，
+     *         以及回溯批次的 [FetchBatch.highWaterUid]
      */
     @Throws(Exception::class)
     suspend fun fetchNew(
@@ -90,11 +92,16 @@ interface MailFetcher {
  * @property failedUids 本次 UID 区间内解析失败的邮件 UID。水线推进不得跨过它们，
  *                      否则对应邮件会被永久漏掉（见 [UidWatermarks.safeAdvance]）
  * @property uidValidity 本次 folder 的 IMAP UIDVALIDITY，上层据此检测 epoch 变化
+ * @property highWaterUid 仅"回溯窗口"批次（首次 / 换邮箱 / 手动重扫 / epoch 变化）非 null：
+ *                      本次抓取时邮箱的最高 UID。上层据此把增量水线一步推到顶——回溯只捞
+ *                      最近窗口，窗口之前的历史一律不再回看，因此水线直接落到顶端，后续增量
+ *                      只拉真正新到达的邮件，永不触发整箱全扫。为 null 时按 [UidWatermarks.safeAdvance] 推进。
  */
 data class FetchBatch(
     val mails: List<IncomingMail>,
     val failedUids: List<Long>,
     val uidValidity: Long,
+    val highWaterUid: Long? = null,
 )
 
 /**

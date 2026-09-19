@@ -10,14 +10,18 @@ import com.szgenle.agentpost.core.mail.MailPushSession
 import org.eclipse.angus.mail.imap.IMAPFolder
 import jakarta.mail.Flags
 import jakarta.mail.Folder
+import jakarta.mail.Message
 import jakarta.mail.Multipart
 import jakarta.mail.Part
 import jakarta.mail.Session
 import jakarta.mail.Store
 import jakarta.mail.UIDFolder
 import jakarta.mail.internet.MimeMessage
+import jakarta.mail.search.ComparisonTerm
+import jakarta.mail.search.ReceivedDateTerm
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Date
 import java.util.Properties
 
 /**
@@ -28,8 +32,18 @@ import java.util.Properties
  */
 internal class JakartaMailFetcher : MailFetcher {
 
-    private companion object {
+    internal companion object {
         const val TAG = "JakartaMailFetcher"
+
+        /**
+         * 回溯窗口（天）：首次配置 / 换邮箱 / 手动重扫 / UIDVALIDITY 变化时，只往回捞
+         * 最近这么多天收到的邮件，而非整箱全扫。日常增量同步不受此影响（永远只拉 UID > 水线）。
+         * 7 天足以覆盖"刚配好就想收到近期回复"的场景，又能避开跨零点漏信。
+         */
+        const val BACKFILL_WINDOW_DAYS = 7
+
+        /** 极少数服务器不支持 IMAP SINCE 搜索时的兜底：退化为"最近 N 封"，仍避免整箱全扫。 */
+        const val BACKFILL_FALLBACK_COUNT = 200
     }
 
     override suspend fun fetchNew(
@@ -43,42 +57,66 @@ internal class JakartaMailFetcher : MailFetcher {
             try {
                 val total = folder.messageCount
                 val uidValidity = folder.uidValidity
-                // UID 只在同一 UIDVALIDITY epoch 内有意义：不一致或本地未记录 → 服务器
-                // 重建过 INBOX、UID 已重新编号，旧水位会永久过滤新邮件，降级为全量重扫。
+                // UIDVALIDITY 不一致或本地未记录 → 需要回溯。回溯只捞最近窗口、不从 UID 1 全扫。
                 val rescan = sinceUidValidity == null || sinceUidValidity != uidValidity
-                if (rescan) {
+                val range: List<Message> = if (rescan) {
                     AppLog.w(
                         TAG,
-                        "fetchNew: uidValidity changed (local=$sinceUidValidity server=$uidValidity), " +
-                            "full rescan instead of incremental sinceUid=$sinceUid",
+                        "fetchNew: backfill recent ${BACKFILL_WINDOW_DAYS}d " +
+                            "(local uidValidity=$sinceUidValidity server=$uidValidity), sinceUid=$sinceUid",
                     )
+                    logAllFolders(store.store)
+                    recentWindow(folder)
+                } else {
+                    folder.getMessagesByUID(sinceUid + 1, UIDFolder.LASTUID).filterNotNull()
                 }
                 val startUid = if (rescan) 1L else sinceUid + 1
-                val range = folder.getMessagesByUID(startUid, UIDFolder.LASTUID)
-                    .filterNotNull()
+                // 回溯后把水线一步推到当前顶端：窗口之前的历史一律不再回看，永不触发整箱全扫。
+                val highWaterUid = if (rescan) topUid(folder) else null
                 AppLog.i(
                     TAG,
                     "fetchNew: total=$total uidValidity=$uidValidity sinceUid=$sinceUid " +
-                        "rescan=$rescan range=[$startUid..LASTUID] rangeSize=${range.size}",
+                        "rescan=$rescan rangeSize=${range.size} highWaterUid=$highWaterUid",
                 )
-                val mails = mutableListOf<IncomingMail>()
-                val failedUids = mutableListOf<Long>()
-                range
-                    .map { folder.getUID(it) to (it as MimeMessage) }
-                    .filter { (uid, _) -> uid >= startUid }
-                    .sortedBy { (_, msg) -> msg.sentDate?.time ?: 0L }
-                    .forEach { (uid, msg) ->
-                        runCatching { parse(msg, uid) }
-                            .onSuccess { mails += it }
-                            .onFailure { e ->
-                                AppLog.w(TAG, "fetchNew: parse failed uid=$uid: ${e.message}")
-                                failedUids += uid
-                            }
-                    }
-                FetchBatch(mails = mails, failedUids = failedUids, uidValidity = uidValidity)
+                val (mails, failedUids) = parseRange(folder, range, startUid, uidValidity, TAG)
+                FetchBatch(
+                    mails = mails,
+                    failedUids = failedUids,
+                    uidValidity = uidValidity,
+                    highWaterUid = highWaterUid,
+                )
             } finally {
                 folder.close(false)
             }
+        }
+    }
+
+    /**
+     * 诊断：列出账号下所有 IMAP 文件夹及各自邮件数。
+     * 仅在回溯(rescan)时打一次，用于定位“邮件被 QQ 收信规则归入了哪个文件夹”——
+     * 本 app 只同步 [INBOX]，其它文件夹里的邮件不会进来。
+     */
+    private fun logAllFolders(store: Store) {
+        runCatching {
+            val folders = store.defaultFolder.list("*")
+            AppLog.i(TAG, "folders: found ${folders.size} folder(s) — app only syncs [INBOX]")
+            for (f in folders) {
+                val name = f.fullName
+                val count = if (name.equals("INBOX", ignoreCase = true)) {
+                    // INBOX 已被 fetchNew 打开，直接读，避免误关调用方在用的连接。
+                    runCatching { f.messageCount }.getOrDefault(-1)
+                } else {
+                    runCatching {
+                        f.open(Folder.READ_ONLY)
+                        val c = f.messageCount
+                        f.close(false)
+                        c
+                    }.getOrDefault(-1)
+                }
+                AppLog.i(TAG, "folders: [$name] count=$count")
+            }
+        }.onFailure { e ->
+            AppLog.w(TAG, "folders: list failed: ${e.message}")
         }
     }
 
@@ -165,7 +203,61 @@ internal class JakartaMailFetcher : MailFetcher {
 
     internal fun openStoreInternal(credentials: MailCredentials): Store = openStore(credentials).store
 
-    internal fun parseInternal(msg: MimeMessage, uid: Long): IncomingMail = parse(msg, uid)
+    /**
+     * 回溯窗口：返回 folder 中最近 [BACKFILL_WINDOW_DAYS] 天收到的邮件（IMAP SINCE 搜索）。
+     * 供 [fetchNew] 与 IDLE 推送建连时的回溯共用，避免整箱全扫。
+     * 极少数服务器不支持日期搜索时，退化为"最近 [BACKFILL_FALLBACK_COUNT] 封"兜底。
+     */
+    internal fun recentWindow(folder: IMAPFolder): List<Message> {
+        val cutoff = Date(System.currentTimeMillis() - BACKFILL_WINDOW_DAYS * 24L * 60L * 60L * 1000L)
+        return runCatching {
+            folder.search(ReceivedDateTerm(ComparisonTerm.GE, cutoff)).filterNotNull()
+        }.getOrElse { e ->
+            AppLog.w(TAG, "recentWindow: date search failed (${e.message}), fallback to last $BACKFILL_FALLBACK_COUNT messages")
+            val top = topUid(folder)
+            if (top <= 0L) return emptyList()
+            val start = (top - BACKFILL_FALLBACK_COUNT + 1).coerceAtLeast(1L)
+            folder.getMessagesByUID(start, UIDFolder.LASTUID).filterNotNull()
+        }
+    }
+
+    /** folder 当前最高 UID；空箱或取失败返回 0。回溯后据此把水线一步推到顶。 */
+    internal fun topUid(folder: IMAPFolder): Long = runCatching {
+        val n = folder.messageCount
+        if (n > 0) folder.getUID(folder.getMessage(n)) else 0L
+    }.getOrDefault(0L)
+
+    /**
+     * 逐封独立解析一段 IMAP 消息，绝不在保护外触碰 envelope（getUID / sentDate / cast）。
+     * 单封损坏（如 "Failed to load IMAP envelope"）只记为 failedUid 跳过，不拖垮整批。
+     * @return 成功解析的邮件（按 sentAt 升序）到解析失败 UID 列表
+     */
+    internal fun parseRange(
+        folder: IMAPFolder,
+        range: List<Message>,
+        startUid: Long,
+        uidValidity: Long,
+        logTag: String,
+    ): Pair<List<IncomingMail>, List<Long>> {
+        val mails = mutableListOf<IncomingMail>()
+        val failedUids = mutableListOf<Long>()
+        for (msg in range) {
+            val uid = runCatching { folder.getUID(msg) }.getOrNull()
+            if (uid == null) {
+                AppLog.w(logTag, "parseRange: getUID failed, skip one message")
+                continue
+            }
+            if (uid < startUid) continue
+            runCatching { parse(msg as MimeMessage, uid, uidValidity) }
+                .onSuccess { mails += it }
+                .onFailure { e ->
+                    AppLog.w(logTag, "parseRange: parse failed uid=$uid: ${e.message}")
+                    failedUids += uid
+                }
+        }
+        mails.sortBy { it.sentAt }
+        return mails to failedUids
+    }
 
     private fun openStore(credentials: MailCredentials): StoreHandle {
         val props = Properties().apply {
@@ -190,9 +282,12 @@ internal class JakartaMailFetcher : MailFetcher {
         return StoreHandle(store)
     }
 
-    private fun parse(msg: MimeMessage, uid: Long): IncomingMail {
+    private fun parse(msg: MimeMessage, uid: Long, uidValidity: Long = 0L): IncomingMail {
+        // 极少数邮件没有 Message-ID 头。过去直接 error() 会让它永久解析失败，并被
+        // safeAdvance 当作"临时失败"钉死增量水线（停在首个失败 UID 之前，之后每轮重拉）。
+        // 改为合成一个 epoch 内稳定的 ID（uidValidity+uid），照常入库、正常去重，水线得以越过它推进。
         val messageId = MimeUtils.stripAngleBrackets(msg.getHeader("Message-ID")?.firstOrNull())
-            ?: error("missing Message-ID on uid=$uid")
+            ?: "agentpost-synthetic-$uidValidity-$uid@localhost"
         val inReplyTo = MimeUtils.stripAngleBrackets(msg.getHeader("In-Reply-To")?.firstOrNull())
         val references = MimeUtils.parseReferences(msg.getHeader("References")?.joinToString(" "))
 

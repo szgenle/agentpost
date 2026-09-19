@@ -2,14 +2,13 @@ package com.szgenle.agentpost.core.mail.internal
 
 import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.mail.FetchBatch
-import com.szgenle.agentpost.core.mail.IncomingMail
 import com.szgenle.agentpost.core.mail.MailCredentials
 import com.szgenle.agentpost.core.mail.MailPushSession
 import com.szgenle.agentpost.core.mail.UidWatermarks
 import jakarta.mail.Folder
+import jakarta.mail.Message
 import jakarta.mail.Store
 import jakarta.mail.UIDFolder
-import jakarta.mail.internet.MimeMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +64,10 @@ internal class JakartaMailPushSession(
 
     @Volatile
     private var uidValidity: Long? = initialUidValidity
+
+    // epoch 变化时置 true：让下一次 drain 走"最近窗口回溯"而非从 UID 1 整箱全扫。
+    @Volatile
+    private var backfillRequested: Boolean = false
 
     private var mainJob: Job? = null
     private var heartbeatJob: Job? = null
@@ -143,9 +146,11 @@ internal class JakartaMailPushSession(
             AppLog.w(
                 TAG,
                 "openAndIdleOnce: uidValidity changed (local=$knownUidValidity server=$serverUidValidity), " +
-                    "reset lastUid $lastUid -> 0, full rescan",
+                    "backfill recent ${JakartaMailFetcher.BACKFILL_WINDOW_DAYS}d instead of full rescan",
             )
-            lastUid = 0L
+            // 不再 lastUid=0 整箱全扫（慢且会撞畸形老信）。标记回溯，让接下来的
+            // drainNew 只捞最近窗口、并把水线一步推到顶（由 highWaterUid 回传上层持久化）。
+            backfillRequested = true
             uidValidity = serverUidValidity
             epochChanged = true
         }
@@ -181,20 +186,28 @@ internal class JakartaMailPushSession(
             val batch = drainNew(folder)
             AppLog.d(
                 TAG,
-                "drain: newMails=${batch.mails.size} failedUids=${batch.failedUids.size} lastUid=$lastUid",
+                "drain: newMails=${batch.mails.size} failedUids=${batch.failedUids.size} " +
+                    "highWaterUid=${batch.highWaterUid} lastUid=$lastUid",
             )
-            if (batch.mails.isNotEmpty() || batch.failedUids.isNotEmpty()) {
+            val hasWork = batch.mails.isNotEmpty() || batch.failedUids.isNotEmpty()
+            if (hasWork || batch.highWaterUid != null) {
                 // 先让上层入库；抛错则走 catch，水位不推进，下轮重拉同一区间（Message-ID 去重幂等）
                 onIncoming(batch)
-                val newWatermark = UidWatermarks.safeAdvance(
+            }
+            // 水位推进：回溯批次直接用 highWaterUid（推到顶，历史不再回看）；增量批次用 safeAdvance。
+            val highWater = batch.highWaterUid
+            val newWatermark = when {
+                highWater != null -> highWater
+                hasWork -> UidWatermarks.safeAdvance(
                     parsedUids = batch.mails.map { it.imapUid },
                     failedUids = batch.failedUids,
                     current = lastUid,
                 )
-                if (newWatermark > lastUid) {
-                    AppLog.d(TAG, "drain: advance lastUid $lastUid -> $newWatermark")
-                    lastUid = newWatermark
-                }
+                else -> lastUid
+            }
+            if (newWatermark > lastUid) {
+                AppLog.d(TAG, "drain: advance lastUid $lastUid -> $newWatermark")
+                lastUid = newWatermark
             }
             batch.mails.isNotEmpty()
         } catch (ce: CancellationException) {
@@ -226,33 +239,36 @@ internal class JakartaMailPushSession(
     }
 
     /**
-     * 拉取 (lastUid, LASTUID] 区间的新邮件（纯 UID 增量，不按 UNSEEN 过滤——
-     * 已读状态全端同步，网页版/其他客户端标过已读的信件若按未读过滤会永远拉不到）。
-     * 解析失败的 UID 记入 [FetchBatch.failedUids]，水位不得跨过它们。
+     * 拉新邮件。两种模式：
+     * - 增量（平时）：(lastUid, LASTUID] 区间，纯 UID 增量，不按 UNSEEN 过滤（已读状态
+     *   全端同步，按未读过滤会永远拉不到）；
+     * - 回溯（backfillRequested，epoch 变化后首次）：只捞最近窗口，并把 highWaterUid
+     *   设为当前顶端 UID，上层据此把水线一步推到顶，历史不再回看。
+     * 解析失败的 UID 记入 [FetchBatch.failedUids]，增量水位不得跨过它们。
      */
     private fun drainNew(folder: IMAPFolder): FetchBatch {
-        val startUid = lastUid + 1
-        val range = folder.getMessagesByUID(startUid, UIDFolder.LASTUID)
-            .filterNotNull()
-        AppLog.d(TAG, "drainNew: uidRange=[$startUid..LASTUID] hit=${range.size} lastUid=$lastUid")
-        if (range.isEmpty()) {
-            return FetchBatch(mails = emptyList(), failedUids = emptyList(), uidValidity = folder.uidValidity)
+        val backfill = backfillRequested
+        val uidValidity = folder.uidValidity
+        val range: List<Message> = if (backfill) {
+            fetcher.recentWindow(folder)
+        } else {
+            folder.getMessagesByUID(lastUid + 1, UIDFolder.LASTUID).filterNotNull()
         }
-        val mails = mutableListOf<IncomingMail>()
-        val failedUids = mutableListOf<Long>()
-        range
-            .map { folder.getUID(it) to (it as MimeMessage) }
-            .filter { (uid, _) -> uid >= startUid }
-            .sortedBy { (_, msg) -> msg.sentDate?.time ?: 0L }
-            .forEach { (uid, msg) ->
-                runCatching { fetcher.parseInternal(msg, uid) }
-                    .onSuccess { mails += it }
-                    .onFailure { e ->
-                        AppLog.w(TAG, "drainNew: parse failed uid=$uid: ${e.message}")
-                        failedUids += uid
-                    }
-            }
-        return FetchBatch(mails = mails, failedUids = failedUids, uidValidity = folder.uidValidity)
+        val startUid = if (backfill) 1L else lastUid + 1
+        AppLog.d(TAG, "drainNew: backfill=$backfill hit=${range.size} lastUid=$lastUid")
+        val (mails, failedUids) = fetcher.parseRange(folder, range, startUid, uidValidity, TAG)
+        val highWaterUid = if (backfill) {
+            backfillRequested = false
+            fetcher.topUid(folder)
+        } else {
+            null
+        }
+        return FetchBatch(
+            mails = mails,
+            failedUids = failedUids,
+            uidValidity = uidValidity,
+            highWaterUid = highWaterUid,
+        )
     }
 
     private suspend fun runHeartbeat() {
