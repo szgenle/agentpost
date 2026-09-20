@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,7 +26,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -138,11 +137,23 @@ private object Routes {
 private enum class TopLevelDestination(
     val route: String,
     @StringRes val labelRes: Int,
-    val icon: ImageVector,
+    val icon: @Composable () -> Unit,
 ) {
-    TASKS(Routes.TASKS, R.string.nav_tab_tasks, Icons.AutoMirrored.Filled.List),
-    ARCHIVED(Routes.TASKS_ARCHIVED, R.string.nav_tab_archived, Icons.Filled.Archive),
-    SETTINGS(Routes.SETTINGS, R.string.nav_tab_settings, Icons.Filled.Settings),
+    TASKS(
+        Routes.TASKS,
+        R.string.nav_tab_tasks,
+        { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+    ),
+    ARCHIVED(
+        Routes.TASKS_ARCHIVED,
+        R.string.nav_tab_archived,
+        { Icon(painterResource(R.drawable.ic_archive), contentDescription = null) },
+    ),
+    SETTINGS(
+        Routes.SETTINGS,
+        R.string.nav_tab_settings,
+        { Icon(Icons.Filled.Settings, contentDescription = null) },
+    ),
 }
 
 @Composable
@@ -305,7 +316,7 @@ private fun AppBottomBar(
             NavigationBarItem(
                 selected = selected,
                 onClick = { onSelect(destination) },
-                icon = { Icon(destination.icon, contentDescription = null) },
+                icon = { destination.icon() },
                 label = { Text(stringResource(destination.labelRes)) },
             )
         }

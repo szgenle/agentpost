@@ -7,8 +7,8 @@ android {
 
     defaultConfig {
         applicationId = "com.szgenle.agentpost"
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     // 只打包 zh / en 两套 locale，避免 APK 被依赖库（如 AppCompat）携带的其他语言资源撞入。
@@ -104,8 +104,5 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    // 底栏「归档」图标 Icons.Filled.Archive 不在 material-icons-core 集合内。
-    // 只有 app 模块的底栏用到，按 implementation 引入，不向 feature 模块扩散。
-    implementation(libs.androidx.compose.material.icons.extended)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
