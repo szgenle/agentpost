@@ -43,19 +43,25 @@ interface MailFetcher {
     suspend fun markSeen(credentials: MailCredentials, imapUids: List<Long>)
 
     /**
-     * 按 UID + 附件在 walkParts 顺序中的序号重新拉附件字节流。
+     * 按 UID + 附件在 walkParts 顺序中的序号拉取附件，流式写入 [target] 文件。
      *
      * 用于附件懒下载：syncInbox 时只存元数据，用户点击查看时再重开 IMAP 拉。
      * 序号语义必须与 [IncomingAttachment.partIndex] 一致（同一 walkParts 算法）。
      *
-     * @return 字节流，由调用方负责关闭
+     * 内部用大块 partial fetch 直写磁盘（不整包进内存），下载过程中按已落盘字节数
+     * 回调 [onProgress]（IO 线程，约每 128KB 一次），供 UI 显示百分比。
+     *
+     * @param target 落盘目标文件（调用方保证父目录存在；失败时可能留下半截文件，
+     *               由调用方按需清理或直接覆盖重下）
      */
     @Throws(Exception::class)
     suspend fun fetchAttachment(
         credentials: MailCredentials,
         imapUid: Long,
         partIndex: String,
-    ): java.io.InputStream
+        target: java.io.File,
+        onProgress: (Long) -> Unit = {},
+    )
 
     /**
      * 启动 IMAP IDLE 长连接推送会话。

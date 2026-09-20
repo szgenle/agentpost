@@ -38,6 +38,8 @@ data class TaskDetailUiState(
     val isRefreshing: Boolean = false,
     /** 正在下载中的附件 key 集合，key 格式 `"$messageId:$attachmentIndex"`。 */
     val downloadingKeys: Set<String> = emptySet(),
+    /** 下载中附件的进度百分比（0-100），key 同 [downloadingKeys]；size 未知时无条目。 */
+    val downloadProgress: Map<String, Int> = emptyMap(),
     /**
      * 一次性的打开附件请求。UI 消费后调用 [TaskDetailViewModel.consumePendingOpen] 清空，
      * 避免 配置变更 后重发。
@@ -94,6 +96,7 @@ class TaskDetailViewModel(
             sending = t.sending,
             isRefreshing = t.refreshing,
             downloadingKeys = t.downloadingKeys,
+            downloadProgress = t.downloadProgress,
             pendingOpen = t.pendingOpen,
             zipPrompt = t.zipPrompt,
             archivedEvent = t.archivedEvent,
@@ -244,9 +247,20 @@ class TaskDetailViewModel(
             transient.value = transient.value.copy(
                 downloadingKeys = transient.value.downloadingKeys + key,
             )
-            val r = repo.downloadAttachment(messageLocalId, index)
+            val r = repo.downloadAttachment(messageLocalId, index) { copied ->
+                // 回调来自 IO 线程，切回主线程更新状态；size 未知（-1）时不报进度
+                if (att.sizeBytes > 0) {
+                    val pct = ((copied * 100) / att.sizeBytes).toInt().coerceIn(0, 100)
+                    viewModelScope.launch {
+                        transient.value = transient.value.copy(
+                            downloadProgress = transient.value.downloadProgress + (key to pct),
+                        )
+                    }
+                }
+            }
             transient.value = transient.value.copy(
                 downloadingKeys = transient.value.downloadingKeys - key,
+                downloadProgress = transient.value.downloadProgress - key,
             )
             r.fold(
                 onSuccess = { path -> handleAttachmentReady(messageLocalId, index, File(path), att) },
@@ -385,6 +399,7 @@ class TaskDetailViewModel(
         val sending: Boolean = false,
         val refreshing: Boolean = false,
         val downloadingKeys: Set<String> = emptySet(),
+        val downloadProgress: Map<String, Int> = emptyMap(),
         val pendingOpen: PendingOpen? = null,
         val zipPrompt: ZipPasswordPrompt? = null,
         val archivedEvent: Boolean = false,

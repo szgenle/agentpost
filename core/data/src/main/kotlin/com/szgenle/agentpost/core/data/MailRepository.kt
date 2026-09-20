@@ -722,10 +722,13 @@ class MailRepository internal constructor(
      *
      * 落盘位置：`filesDir/attachments/{messageLocalId}/{fileName}`，后续通过 FileProvider
      * 转成 content:// URI 再交给系统打开。
+     *
+     * @param onProgress 下载进度回调（IO 线程），参数为已落盘字节数，供 UI 显示百分比。
      */
     suspend fun downloadAttachment(
         messageLocalId: String,
         attachmentIndex: Int,
+        onProgress: (Long) -> Unit = {},
     ): Result<String> = runCatching {
         val msg = requireNotNull(messageDao.getById(messageLocalId)) {
             "Message not found: $messageLocalId"
@@ -742,13 +745,11 @@ class MailRepository internal constructor(
         val creds = self.toCredentials()
 
         val dir = File(appContext.filesDir, "attachments/$messageLocalId")
-        val target = withContext(Dispatchers.IO) {
+        val target = File(dir, sanitizeFileName(att.fileName))
+        withContext(Dispatchers.IO) {
             if (!dir.exists()) dir.mkdirs()
-            val file = File(dir, sanitizeFileName(att.fileName))
-            fetcher.fetchAttachment(creds, uid, pi).use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
-            }
-            file
+            // 失败时可能留下半截文件：localPath 只在成功后回写，下次点击直接覆盖重下，无残留影响
+            fetcher.fetchAttachment(creds, uid, pi, target, onProgress)
         }
         // 回写 localPath
         val updatedAttachments = msg.attachments.mapIndexed { i, a ->

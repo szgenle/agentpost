@@ -389,6 +389,7 @@ private class FakeTaskMessageDao(
         error("unused by TaskRouter")
     override suspend fun listLocalIdsByTask(taskId: String): List<String> =
         error("unused by TaskRouter")
+    override suspend fun deleteByTaskId(taskId: String) = error("unused by TaskRouter")
     override suspend fun updateSendStatus(
         id: String,
         status: SendStatus,

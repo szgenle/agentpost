@@ -203,6 +203,7 @@ fun TaskDetailRoute(
                                 MessageBubble(
                                     msg = msg,
                                     downloadingKeys = state.downloadingKeys,
+                                    downloadProgress = state.downloadProgress,
                                     onRetry = { viewModel.retrySend(msg.id) },
                                     onAttachmentClick = { index, att ->
                                         viewModel.onAttachmentClick(msg.id, index, att)
@@ -239,6 +240,7 @@ fun TaskDetailRoute(
 private fun MessageBubble(
     msg: TaskMessage,
     downloadingKeys: Set<String>,
+    downloadProgress: Map<String, Int>,
     onRetry: () -> Unit,
     onAttachmentClick: (index: Int, attachment: Attachment) -> Unit,
 ) {
@@ -293,6 +295,7 @@ private fun MessageBubble(
                             AttachmentRow(
                                 attachment = att,
                                 downloading = "${msg.id}:$index" in downloadingKeys,
+                                downloadPercent = downloadProgress["${msg.id}:$index"],
                                 onClick = { onAttachmentClick(index, att) },
                             )
                         }
@@ -413,6 +416,7 @@ private fun ReplyBar(
 private fun AttachmentRow(
     attachment: Attachment,
     downloading: Boolean,
+    downloadPercent: Int?,
     onClick: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -420,6 +424,8 @@ private fun AttachmentRow(
         runCatching { File(attachment.localPath!!).exists() }.getOrDefault(false)
 
     val actionText = when {
+        downloading && downloadPercent != null ->
+            stringResource(R.string.attachment_action_downloading_percent, downloadPercent)
         downloading -> stringResource(R.string.attachment_action_downloading)
         hasLocal -> stringResource(R.string.attachment_action_open)
         else -> stringResource(R.string.attachment_action_download)

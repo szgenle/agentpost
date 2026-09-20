@@ -96,6 +96,7 @@
     <string name="attachment_item_label">%1$s · %2$s</string>
     <string name="attachment_action_download">下载</string>
     <string name="attachment_action_downloading">下载中…</string>
+    <string name="attachment_action_downloading_percent">下载中 %1$d%%</string>
     <string name="attachment_action_open">打开</string>
     <string name="attachment_download_failed">附件下载失败</string>
     <string name="attachment_not_downloadable">该附件不可下载</string>

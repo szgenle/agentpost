@@ -44,6 +44,16 @@ internal class JakartaMailFetcher : MailFetcher {
 
         /** 极少数服务器不支持 IMAP SINCE 搜索时的兜底：退化为"最近 N 封"，仍避免整箱全扫。 */
         const val BACKFILL_FALLBACK_COUNT = 200
+
+        /**
+         * 附件下载连接的 partial fetch 块大小。angus-mail 默认 16KB，拉 30MB 附件意味着
+         * ~2000 次同步 FETCH 命令往返（每次都要等服务器定位 + 读盘 + base64），QQ 邮箱
+         * 实测是分钟级等待且无进度可拖。加大到 512KB 后同样附件只需 ~60 次往返。
+         */
+        internal const val ATTACHMENT_FETCH_BLOCK_BYTES = 512 * 1024
+
+        /** 附件下载连接的 socket 读超时：单块变大后单次 read 允许更久，比同步连接的 30s 宽松。 */
+        internal const val ATTACHMENT_READ_TIMEOUT_MS = 120_000
     }
 
     override suspend fun fetchNew(
@@ -145,16 +155,27 @@ internal class JakartaMailFetcher : MailFetcher {
         credentials: MailCredentials,
         imapUid: Long,
         partIndex: String,
-    ): java.io.InputStream = withContext(Dispatchers.IO) {
-        val target = partIndex.toIntOrNull()
+        target: java.io.File,
+        onProgress: (Long) -> Unit,
+    ): Unit = withContext(Dispatchers.IO) {
+        val targetIdx = partIndex.toIntOrNull()
             ?: error("invalid partIndex=$partIndex")
-        openStore(credentials).use { store ->
+        // 下载专用连接参数：大块 partial fetch + 宽粒读超时（见常量注释）
+        openStore(
+            credentials,
+            extraProps = mapOf(
+                "mail.imap.fetchsize" to ATTACHMENT_FETCH_BLOCK_BYTES.toString(),
+                "mail.imaps.fetchsize" to ATTACHMENT_FETCH_BLOCK_BYTES.toString(),
+                "mail.imap.timeout" to ATTACHMENT_READ_TIMEOUT_MS.toString(),
+                "mail.imaps.timeout" to ATTACHMENT_READ_TIMEOUT_MS.toString(),
+            ),
+        ).use { store ->
             val folder = store.store.getFolder("INBOX") as IMAPFolder
             folder.open(Folder.READ_ONLY)
             try {
                 val msg = folder.getMessageByUID(imapUid) as? MimeMessage
                     ?: error("message not found for uid=$imapUid")
-                // 用与 collectAttachments 一致的 walkParts 顺序重新算，定位到第 target 个附件
+                // 用与 collectAttachments 一致的 walkParts 顺序重新算，定位到第 targetIdx 个附件
                 var found: Part? = null
                 var cursor = 0
                 walkParts(msg) { p ->
@@ -163,17 +184,34 @@ internal class JakartaMailFetcher : MailFetcher {
                     val isAttachment = Part.ATTACHMENT.equals(disp, ignoreCase = true) ||
                         !p.fileName.isNullOrBlank()
                     if (isAttachment && !p.fileName.isNullOrBlank()) {
-                        if (cursor == target) {
+                        if (cursor == targetIdx) {
                             found = p
                         }
                         cursor++
                     }
                 }
                 val part = found ?: error("attachment part $partIndex not found on uid=$imapUid")
-                // 注意：Store 关闭后流也会失效，调用方需在本方法回前读完。
-                // 我们直接读成字节再给 ByteArrayInputStream，避免生命周期问题。
-                val bytes = part.inputStream.use { it.readBytes() }
-                java.io.ByteArrayInputStream(bytes)
+                // 流式直写磁盘：不再整包读进内存包 ByteArrayInputStream（大附件会把堆
+                // 翻倍），边拉边写边报进度。
+                part.inputStream.use { input ->
+                    target.outputStream().use { output ->
+                        val buf = ByteArray(64 * 1024)
+                        var copied = 0L
+                        var lastReported = -1L
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            output.write(buf, 0, n)
+                            copied += n
+                            // 约每 128KB 上报一次，避免高频回调打满调用方状态流
+                            if (copied - lastReported >= 128 * 1024) {
+                                onProgress(copied)
+                                lastReported = copied
+                            }
+                        }
+                        onProgress(copied)
+                    }
+                }
             } finally {
                 folder.close(false)
             }
@@ -259,7 +297,10 @@ internal class JakartaMailFetcher : MailFetcher {
         return mails to failedUids
     }
 
-    private fun openStore(credentials: MailCredentials): StoreHandle {
+    private fun openStore(
+        credentials: MailCredentials,
+        extraProps: Map<String, String> = emptyMap(),
+    ): StoreHandle {
         val props = Properties().apply {
             put("mail.store.protocol", if (credentials.imapUseSsl) "imaps" else "imap")
             put("mail.imaps.host", credentials.imapHost)
@@ -275,6 +316,7 @@ internal class JakartaMailFetcher : MailFetcher {
             // Jakarta Mail 的 SO_KEEPALIVE 属性名，同时适配 imap 和 imaps。
             put("mail.imap.socketKeepAlive", "true")
             put("mail.imaps.socketKeepAlive", "true")
+            for ((k, v) in extraProps) put(k, v)
         }
         val session = Session.getInstance(props)
         val store = session.getStore(if (credentials.imapUseSsl) "imaps" else "imap")
@@ -339,14 +381,19 @@ internal class JakartaMailFetcher : MailFetcher {
     }
 
     private fun walkParts(part: Part, visitor: (Part) -> Unit) {
-        val content = runCatching { part.content }.getOrNull()
-        if (content is Multipart) {
-            for (i in 0 until content.count) {
-                walkParts(content.getBodyPart(i), visitor)
+        // 只对 multipart 读 content 拿子结构；leaf part（正文 / 附件）一律不碰 content——
+        // 否则每次遍历结构都会顺带触发正文 part 的网络 fetch（附件 part 虽是惰性流，
+        // 同样不该在定位阶段被打开）。contentType 从 BODYSTRUCTURE 缓存判断，无网络开销。
+        if (part.isMimeType("multipart/*")) {
+            val content = runCatching { part.content }.getOrNull()
+            if (content is Multipart) {
+                for (i in 0 until content.count) {
+                    walkParts(content.getBodyPart(i), visitor)
+                }
+                return
             }
-        } else {
-            visitor(part)
         }
+        visitor(part)
     }
 
     /** 轻量 AutoCloseable 包装，方便 use {} 自动关闭。 */
