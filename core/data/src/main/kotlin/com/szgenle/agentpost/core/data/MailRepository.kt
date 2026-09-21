@@ -1,6 +1,8 @@
 package com.szgenle.agentpost.core.data
 
 import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
 import com.szgenle.agentpost.core.common.logging.AppLog
 import com.szgenle.agentpost.core.common.mail.SubjectNormalizer
 import com.szgenle.agentpost.core.common.security.CredentialsVault
@@ -29,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import java.io.DataInputStream
 import java.io.File
 import java.util.UUID
 
@@ -104,6 +107,47 @@ class MailRepository internal constructor(
         val outputDir = File(appContext.cacheDir, "decrypted/$messageId/$attIndex")
         runCatching { outputDir.deleteRecursively() }
         return ZipDecryptor.decrypt(src = src, outputDir = outputDir, password = password)
+    }
+
+    /** SAF 导入的本地 zip 文件：落盘文件 + 原始显示名。 */
+    data class ImportedZip(val file: File, val displayName: String)
+
+    /**
+     * 从 SAF 选中的 [uri]（如浏览器下载到 Download 目录的加密 zip）拷贝到
+     * `cacheDir/import/` 并校验 zip 文件头（PK），供「导入本地加密 zip」流程
+     * 复用附件的主密码自动解密链路。
+     *
+     * 保留原始显示名；落盘文件名强制带 .zip 扩展（[ZipDecryptor.isEncryptedZip]
+     * 依赖扩展名粗筛）。非 zip 文件返回 failure。
+     */
+    suspend fun importZipFrom(uri: Uri): Result<ImportedZip> = runCatching {
+        withContext(Dispatchers.IO) {
+            val resolver = appContext.contentResolver
+            val displayName = runCatching {
+                resolver.query(uri, null, null, null, null)?.use { c ->
+                    val idx = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (idx >= 0 && c.moveToFirst()) c.getString(idx) else null
+                }
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: "imported.zip"
+            val safeName =
+                if (displayName.endsWith(".zip", ignoreCase = true)) displayName else "$displayName.zip"
+
+            val dir = File(appContext.cacheDir, "import").apply { if (!exists()) mkdirs() }
+            val dst = File(dir, safeName)
+            resolver.openInputStream(uri)?.use { input ->
+                dst.outputStream().use { input.copyTo(it) }
+            } ?: error("无法读取所选文件")
+
+            // PK 文件头校验：拦下用户误选的非 zip 文件
+            val head = DataInputStream(dst.inputStream()).use { s ->
+                ByteArray(2).also { s.readFully(it) }
+            }
+            if (head[0] != 'P'.code.toByte() || head[1] != 'K'.code.toByte()) {
+                dst.delete()
+                error("所选文件不是 zip 文件")
+            }
+            ImportedZip(file = dst, displayName = displayName)
+        }
     }
 
     /**

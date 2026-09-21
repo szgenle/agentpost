@@ -1,5 +1,6 @@
 package com.szgenle.agentpost.feature.tasks
 
+import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -278,17 +279,49 @@ class TaskDetailViewModel(
     }
 
     /**
-     * 附件已落盘 / 刚下载完成后的统一入口：
+     * 「导入加密 zip」入口：SAF 选中的本地文件（如浏览器从 HTTP 链接下载的加密包）
+     * 拷入 app 后走与附件一致的解密分流：非加密直接打开，加密则主密码自动解 / 弹框手输。
+     *
+     * 场景：家里 AI 把大文件打成加密 zip 放 HTTP，邮件正文只发链接——浏览器快下
+     * 完后回到这里导入解密，避开 IMAP 附件通道的限速。
+     */
+    fun onImportZip(uri: Uri) {
+        viewModelScope.launch {
+            val imported = repo.importZipFrom(uri).getOrElse { e ->
+                val uiText = e.message?.takeIf { it.isNotBlank() }
+                    ?.let(UiText::Dynamic)
+                    ?: UiText.Resource(R.string.import_zip_failed)
+                transient.value = transient.value.copy(error = uiText)
+                return@launch
+            }
+            dispatchZipOpen(
+                messageId = IMPORT_MESSAGE_ID,
+                index = 0,
+                src = imported.file,
+                fileName = imported.displayName,
+                fallbackMime = "application/zip",
+            )
+        }
+    }
+
+    /**
+     * zip 分流统一入口（附件下载完成 / SAF 导入共用）：
      * - 非加密 zip → 直接 [PendingOpen] 交给 UI 调 FileProvider 打开；
      * - 加密 zip 且已配置主密码 → 直接解密尝试，错了才弹提示；
      * - 加密 zip 但未配置主密码 → 直接弹提示（wrongPassword=false）。
      */
-    private fun handleAttachmentReady(messageId: String, index: Int, src: File, att: Attachment) {
+    private fun dispatchZipOpen(
+        messageId: String,
+        index: Int,
+        src: File,
+        fileName: String,
+        fallbackMime: String,
+    ) {
         viewModelScope.launch {
             val encrypted = withContext(Dispatchers.IO) { ZipDecryptor.isEncryptedZip(src) }
             if (!encrypted) {
                 transient.value = transient.value.copy(
-                    pendingOpen = PendingOpen(src.absolutePath, att.mimeType),
+                    pendingOpen = PendingOpen(src.absolutePath, fallbackMime),
                 )
                 return@launch
             }
@@ -299,14 +332,18 @@ class TaskDetailViewModel(
                         messageId = messageId,
                         attIndex = index,
                         srcPath = src.absolutePath,
-                        fileName = att.fileName,
+                        fileName = fileName,
                         wrongPassword = false,
                     ),
                 )
                 return@launch
             }
-            tryDecryptAndOpen(messageId, index, src, att.fileName, master)
+            tryDecryptAndOpen(messageId, index, src, fileName, master)
         }
+    }
+
+    private fun handleAttachmentReady(messageId: String, index: Int, src: File, att: Attachment) {
+        dispatchZipOpen(messageId, index, src, att.fileName, att.mimeType)
     }
 
     /**
@@ -407,6 +444,10 @@ class TaskDetailViewModel(
     )
 
     companion object {
+        /** SAF 导入的加密 zip 用的伪消息 id：解压目录 decrypted/imported/0，与真实消息目录天然隔离，
+         * 且启动时 cacheDir/decrypted 整体清除的 lifecycle 照常覆盖。 */
+        private const val IMPORT_MESSAGE_ID = "imported"
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val handle: SavedStateHandle = createSavedStateHandle()

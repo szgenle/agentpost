@@ -3,7 +3,11 @@ package com.szgenle.agentpost.feature.tasks
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.text.format.Formatter
+import android.util.Patterns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -53,6 +57,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -107,6 +118,14 @@ fun TaskDetailRoute(
         viewModel.consumePendingOpen()
     }
 
+    // 「导入加密 zip」：SAF 选中本地加密包（如浏览器从 HTTP 链接下载的）后交 ViewModel
+    // 走与附件一致的主密码自动解密链路
+    val importZipLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) viewModel.onImportZip(uri)
+    }
+
     val listState = rememberLazyListState()
     // 新消息到达时滚到底
     LaunchedEffect(state.messages.size) {
@@ -134,18 +153,32 @@ fun TaskDetailRoute(
                     val canArchive = task != null &&
                         task.id != SystemIds.UNCLASSIFIED_TASK_ID &&
                         !task.archived
-                    if (canArchive) {
-                        var menuExpanded by remember { mutableStateOf(false) }
-                        IconButton(onClick = { menuExpanded = true }) {
-                            Text(
-                                text = "⋮",
-                                style = MaterialTheme.typography.titleLarge,
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false },
-                        ) {
+                    var menuExpanded by remember { mutableStateOf(false) }
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Text(
+                            text = "⋮",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.task_detail_menu_import_zip)) },
+                            onClick = {
+                                menuExpanded = false
+                                importZipLauncher.launch(
+                                    arrayOf(
+                                        "application/zip",
+                                        "application/x-zip-compressed",
+                                        "application/octet-stream",
+                                    ),
+                                )
+                            },
+                        )
+                        // 占位任务 / 已归档任务不暴露归档入口
+                        if (canArchive) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.task_detail_menu_archive)) },
                                 onClick = {
@@ -282,9 +315,26 @@ private fun MessageBubble(
                     style = MaterialTheme.typography.labelSmall,
                 )
                 Spacer(Modifier.height(4.dp))
+                // 正文里的链接高亮可点：家里 AI 把大文件放 HTTP、正文只发链接时，
+                // 点一下就能跳浏览器下载（通道比 IMAP 附件快 5~10 倍）
+                val linkColor = MaterialTheme.colorScheme.primary
+                val annotatedBody = remember(msg.body, linkColor) { annotateLinks(msg.body, linkColor) }
+                var bodyLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
                 Text(
-                    text = msg.body,
+                    text = annotatedBody,
                     style = MaterialTheme.typography.bodyMedium,
+                    onTextLayout = { bodyLayout = it },
+                    modifier = Modifier.pointerInput(annotatedBody) {
+                        detectTapGestures(onTap = { pos ->
+                            val layout = bodyLayout ?: return@detectTapGestures
+                            val offset = layout.getOffsetForPosition(pos)
+                            val url = annotatedBody
+                                .getStringAnnotations(TAG_URL, offset, offset)
+                                .firstOrNull()?.item
+                                ?: return@detectTapGestures
+                            openInBrowser(context, url)
+                        })
+                    },
                 )
                 if (msg.attachments.isNotEmpty()) {
                     Spacer(Modifier.height(6.dp))
@@ -486,6 +536,43 @@ private fun openAttachment(
         true
     } catch (_: ActivityNotFoundException) {
         false
+    }
+}
+
+/** 正文链接注记的 tag，命中处携带原始 URL 字符串。 */
+private const val TAG_URL = "url"
+
+/** 把正文里的 http(s) / www 链接标成可点击注记（高亮 + 下划线）。 */
+private fun annotateLinks(body: String, linkColor: Color): AnnotatedString {
+    val matcher = Patterns.WEB_URL.matcher(body)
+    return buildAnnotatedString {
+        var last = 0
+        while (matcher.find()) {
+            // 防御重叠匹配：只接受顺序推进的区间
+            if (matcher.start() < last) continue
+            append(body, last, matcher.start())
+            pushStringAnnotation(TAG_URL, matcher.group())
+            withStyle(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) {
+                append(body, matcher.start(), matcher.end())
+            }
+            pop()
+            last = matcher.end()
+        }
+        append(body, last, body.length)
+    }
+}
+
+/** 跳系统浏览器打开链接；无 scheme 的 www 链接补 https。 */
+private fun openInBrowser(context: Context, rawUrl: String) {
+    val url = if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+        rawUrl
+    } else {
+        "https://$rawUrl"
+    }
+    runCatching {
+        context.startActivity(
+            Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
     }
 }
 

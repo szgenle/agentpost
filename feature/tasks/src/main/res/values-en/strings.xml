@@ -82,6 +82,8 @@
 
     <!-- Task detail top bar overflow menu -->
     <string name="task_detail_menu_archive">Archive</string>
+    <string name="task_detail_menu_import_zip">Import encrypted zip</string>
+    <string name="import_zip_failed">Failed to import file</string>
     <string name="task_detail_archive_failed">Archive failed</string>
 
     <!-- Bubble send status machine -->

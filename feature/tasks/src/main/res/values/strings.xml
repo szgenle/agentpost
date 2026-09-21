@@ -84,6 +84,8 @@
 
     <!-- 详情页顶栏 overflow 菜单 -->
     <string name="task_detail_menu_archive">归档</string>
+    <string name="task_detail_menu_import_zip">导入加密 zip</string>
+    <string name="import_zip_failed">导入文件失败</string>
     <string name="task_detail_archive_failed">归档失败</string>
 
     <!-- 气泡发送状态机 -->
